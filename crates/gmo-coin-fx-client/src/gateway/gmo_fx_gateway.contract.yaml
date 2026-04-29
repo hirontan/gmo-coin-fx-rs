@@ -1,0 +1,9 @@
+name: gmo_fx_gateway
+module: gmo_fx
+role: api_gateway
+path: crates/gmo-coin-fx-client/src/gateway/gmo_fx_gateway.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

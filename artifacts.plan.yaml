@@ -1,0 +1,105 @@
+artifacts:
+  - name: api_error
+    module: gmo_fx
+    role: error
+    status: planned
+    outputs:
+      - GmoFxError
+      - Result
+
+  - name: market_models
+    module: gmo_fx
+    role: domain_model
+    status: planned
+    outputs:
+      - Ticker
+      - Symbol
+      - ApiStatus
+
+  - name: account_models
+    module: gmo_fx
+    role: domain_model
+    status: planned
+    outputs:
+      - AccountAsset
+
+  - name: order_models
+    module: gmo_fx
+    role: domain_model
+    status: planned
+    inputs:
+      - OrderRequest
+    outputs:
+      - Order
+      - OrderSide
+      - ExecutionType
+      - SettleType
+
+  - name: auth_signer
+    module: gmo_fx
+    role: auth
+    status: planned
+    inputs:
+      - ApiKey
+      - SecretKey
+      - Timestamp
+      - HttpMethod
+      - RequestPath
+      - RequestBody
+    outputs:
+      - ApiSignature
+      - AuthHeaders
+
+  - name: public_rest_client
+    module: gmo_fx
+    role: rest_client
+    status: planned
+    outputs:
+      - PublicRestClient
+
+  - name: private_rest_client
+    module: gmo_fx
+    role: rest_client
+    status: planned
+    inputs:
+      - AuthSigner
+    outputs:
+      - PrivateRestClient
+
+  - name: gmo_fx_gateway
+    module: gmo_fx
+    role: api_gateway
+    status: planned
+    inputs:
+      - PublicRestClient
+      - PrivateRestClient
+    outputs:
+      - GmoFxClient
+
+  - name: rate_limit_policy
+    module: gmo_fx
+    role: policy
+    status: planned
+    outputs:
+      - RateLimitPolicy
+
+  - name: websocket_auth
+    module: gmo_fx
+    role: websocket_client
+    status: planned
+    inputs:
+      - AuthSigner
+    outputs:
+      - WebSocketAccessToken
+
+  - name: private_websocket_events
+    module: gmo_fx
+    role: websocket_client
+    status: planned
+    inputs:
+      - WebSocketAccessToken
+    outputs:
+      - ExecutionEvent
+      - OrderEvent
+      - PositionEvent
+      - PositionSummaryEvent

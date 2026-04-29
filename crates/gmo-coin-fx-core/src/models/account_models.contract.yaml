@@ -1,0 +1,9 @@
+name: account_models
+module: gmo_fx
+role: domain_model
+path: crates/gmo-coin-fx-core/src/models/account_models.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO
