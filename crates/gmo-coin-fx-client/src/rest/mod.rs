@@ -1,8 +1,4 @@
-use gmo_coin_fx_core::{
-    models::ApiResponse,
-    GmoFxError,
-    Result,
-};
+use gmo_coin_fx_core::{models::ApiResponse, GmoFxError, Result};
 use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -36,8 +32,16 @@ impl RestClient {
         T: DeserializeOwned,
     {
         let url = format!("{}{}", self.public_base_url, path);
-        let res = self.http.get(url).send().await.map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let api_res: ApiResponse<T> = res.json().await.map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let res = self
+            .http
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| GmoFxError::Http(e.to_string()))?;
+        let api_res: ApiResponse<T> = res
+            .json()
+            .await
+            .map_err(|e| GmoFxError::Json(e.to_string()))?;
 
         if api_res.status != 0 {
             return Err(GmoFxError::Api {
@@ -70,8 +74,14 @@ impl RestClient {
             req = req.query(query);
         }
 
-        let res = req.send().await.map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let api_res: ApiResponse<T> = res.json().await.map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let res = req
+            .send()
+            .await
+            .map_err(|e| GmoFxError::Http(e.to_string()))?;
+        let api_res: ApiResponse<T> = res
+            .json()
+            .await
+            .map_err(|e| GmoFxError::Json(e.to_string()))?;
 
         if api_res.status != 0 {
             return Err(GmoFxError::Api {
@@ -107,7 +117,10 @@ impl RestClient {
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
 
-        let api_res: ApiResponse<T> = res.json().await.map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let api_res: ApiResponse<T> = res
+            .json()
+            .await
+            .map_err(|e| GmoFxError::Json(e.to_string()))?;
 
         if api_res.status != 0 {
             return Err(GmoFxError::Api {

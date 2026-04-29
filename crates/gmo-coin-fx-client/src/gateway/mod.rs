@@ -1,13 +1,7 @@
 use crate::auth::AuthSigner;
 use crate::rest::RestClient;
 use gmo_coin_fx_core::{
-    models::{
-        AccountAsset,
-        ActiveOrders,
-        Order,
-        OrderRequest,
-        Ticker,
-    },
+    models::{AccountAsset, ActiveOrders, Order, OrderRequest, Ticker},
     Result,
 };
 
@@ -22,7 +16,11 @@ pub struct GmoFxClientBuilder {
 }
 
 impl GmoFxClientBuilder {
-    pub fn credentials(mut self, api_key: impl Into<String>, secret_key: impl Into<String>) -> Self {
+    pub fn credentials(
+        mut self,
+        api_key: impl Into<String>,
+        secret_key: impl Into<String>,
+    ) -> Self {
         self.api_key = Some(api_key.into());
         self.secret_key = Some(secret_key.into());
         self
