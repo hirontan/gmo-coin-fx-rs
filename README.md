@@ -15,10 +15,12 @@ batonel init --preset rust-clean-hexagonal --project-name gmo-coin-fx-rs
 
 ※ `project.baton.yaml`, `placement.rules.yaml`, `contracts.template.yaml`, `artifacts.plan.yaml`, `policy.profile.yaml`, `guard.sidecar.yaml` が生成されるので、適宜修正する
 
-### プラン確認
+### ファイル自動生成と設計審査
 
 ```shell
+batonel scaffold
 batonel plan
+batonel verify
 ```
 
 
