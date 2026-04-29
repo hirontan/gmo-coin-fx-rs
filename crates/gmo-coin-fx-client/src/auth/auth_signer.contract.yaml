@@ -1,0 +1,9 @@
+name: auth_signer
+module: gmo_fx
+role: auth
+path: crates/gmo-coin-fx-client/src/auth/auth_signer.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

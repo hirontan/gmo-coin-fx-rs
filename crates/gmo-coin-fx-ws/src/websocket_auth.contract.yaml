@@ -1,0 +1,9 @@
+name: websocket_auth
+module: gmo_fx
+role: websocket_client
+path: crates/gmo-coin-fx-ws/src/websocket_auth.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

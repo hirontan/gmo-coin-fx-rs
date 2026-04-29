@@ -1,0 +1,9 @@
+name: rate_limit_policy
+module: gmo_fx
+role: policy
+path: crates/gmo-coin-fx-client/src/policy/rate_limit_policy.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

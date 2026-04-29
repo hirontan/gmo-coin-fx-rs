@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/gmo-coin-fx-core",
+  "crates/gmo-coin-fx-client",
+  "crates/gmo-coin-fx-ws",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Arcflect/gmo-coin-fx-rs"
+
+[workspace.dependencies]
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+url = "2"

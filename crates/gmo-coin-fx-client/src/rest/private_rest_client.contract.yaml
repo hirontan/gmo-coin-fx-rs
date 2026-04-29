@@ -1,0 +1,9 @@
+name: private_rest_client
+module: gmo_fx
+role: rest_client
+path: crates/gmo-coin-fx-client/src/rest/private_rest_client.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

@@ -1,0 +1,72 @@
+role_templates:
+  domain_model:
+    responsibilities:
+      - "Represent GMO FX API request and response data safely"
+      - "Preserve numeric API values as strings or precise decimal-compatible values"
+      - "Keep exchange-specific naming explicit"
+    must_not:
+      - "Perform HTTP requests"
+      - "Read environment variables"
+      - "Contain trading strategy logic"
+    implementation_size: "small"
+
+  error:
+    responsibilities:
+      - "Define SDK-level error types"
+      - "Represent HTTP, JSON, authentication, rate-limit, and exchange API errors"
+    must_not:
+      - "Send requests"
+      - "Hide exchange error payloads"
+    implementation_size: "small"
+
+  auth:
+    responsibilities:
+      - "Generate GMO FX API signatures"
+      - "Attach API-KEY, API-TIMESTAMP, and API-SIGN headers"
+      - "Keep secret handling isolated"
+    must_not:
+      - "Log API secrets"
+      - "Contain order decision logic"
+      - "Access trading strategy state"
+    implementation_size: "small"
+
+  rest_client:
+    responsibilities:
+      - "Execute Public and Private REST API requests"
+      - "Deserialize GMO FX API responses"
+      - "Convert transport failures into SDK errors"
+    must_not:
+      - "Decide whether to buy or sell"
+      - "Retry unsafe POST requests without explicit policy"
+      - "Embed WebSocket-specific behavior"
+    implementation_size: "medium"
+
+  api_gateway:
+    responsibilities:
+      - "Expose high-level methods such as ticker, assets, order, active_orders, and open_positions"
+      - "Provide a stable Rust-facing API over raw endpoints"
+    must_not:
+      - "Leak raw reqwest details into SDK users"
+      - "Bypass auth and rate-limit policy for private endpoints"
+    implementation_size: "medium"
+
+  websocket_client:
+    responsibilities:
+      - "Manage Public and Private WebSocket connections"
+      - "Subscribe to ticker, execution, order, position, and position summary events"
+      - "Convert stream messages into typed events"
+    must_not:
+      - "Place orders"
+      - "Contain strategy decisions"
+      - "Block the async runtime"
+    implementation_size: "medium"
+
+  policy:
+    responsibilities:
+      - "Define client-side rate limit and safety policy"
+      - "Prevent accidental request bursts against Private API"
+      - "Provide extension points for trading applications"
+    must_not:
+      - "Know concrete trading strategies"
+      - "Own API credentials"
+    implementation_size: "small"

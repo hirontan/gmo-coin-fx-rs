@@ -1,0 +1,1 @@
+// Batonel placeholder: private_rest_client (rest_client)

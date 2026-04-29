@@ -1,0 +1,9 @@
+name: private_websocket_events
+module: gmo_fx
+role: websocket_client
+path: crates/gmo-coin-fx-ws/src/private_websocket_events.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

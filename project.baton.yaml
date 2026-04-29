@@ -1,0 +1,32 @@
+batonel:
+  schema_version: "1"
+
+preset:
+  id: rust-clean-hexagonal
+
+project:
+  name: gmo-coin-fx-rs
+  architecture_style: clean-hexagonal
+  language: rust
+
+workspace:
+  enabled: true
+  members:
+    - crates/gmo-coin-fx-core
+    - crates/gmo-coin-fx-client
+    - crates/gmo-coin-fx-ws
+
+modules:
+  - name: gmo_fx
+    features:
+      - api_error
+      - market_models
+      - account_models
+      - order_models
+      - auth_signer
+      - public_rest_client
+      - private_rest_client
+      - gmo_fx_gateway
+      - rate_limit_policy
+      - websocket_auth
+      - private_websocket_events

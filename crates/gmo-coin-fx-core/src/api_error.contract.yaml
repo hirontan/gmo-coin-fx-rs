@@ -1,0 +1,9 @@
+name: api_error
+module: gmo_fx
+role: error
+path: crates/gmo-coin-fx-core/src/api_error.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

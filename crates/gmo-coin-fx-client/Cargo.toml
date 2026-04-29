@@ -1,0 +1,16 @@
+[package]
+name = "gmo-coin-fx-client"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gmo-coin-fx-core = { path = "../gmo-coin-fx-core" }
+
+reqwest.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+hex.workspace = true
