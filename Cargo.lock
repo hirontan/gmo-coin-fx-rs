@@ -316,7 +316,10 @@ dependencies = [
 name = "gmo-coin-fx-core"
 version = "0.1.0"
 dependencies = [
+ "hex",
+ "hmac",
  "serde",
+ "sha2",
  "thiserror",
 ]
 
