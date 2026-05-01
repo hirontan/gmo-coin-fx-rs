@@ -131,6 +131,85 @@ impl RestClient {
 
         Ok(api_res.data)
     }
+
+    pub async fn private_put<T, B>(&self, path: &str, body: &B) -> Result<T>
+    where
+        T: DeserializeOwned,
+        B: Serialize,
+    {
+        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
+        let timestamp = current_timestamp_millis();
+        let body_text = serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let headers = auth.sign(&timestamp, "PUT", path, &body_text);
+
+        let url = format!("{}{}", self.private_base_url, path);
+
+        let res = self
+            .http
+            .put(url)
+            .header("content-type", "application/json")
+            .header("API-KEY", headers.api_key)
+            .header("API-TIMESTAMP", headers.api_timestamp)
+            .header("API-SIGN", headers.api_sign)
+            .body(body_text)
+            .send()
+            .await
+            .map_err(|e| GmoFxError::Http(e.to_string()))?;
+
+        let api_res: ApiResponse<T> = res
+            .json()
+            .await
+            .map_err(|e| GmoFxError::Json(e.to_string()))?;
+
+        if api_res.status != 0 {
+            return Err(GmoFxError::Api {
+                status: api_res.status,
+                messages: api_res.messages,
+            });
+        }
+
+        Ok(api_res.data)
+    }
+
+    pub async fn private_delete<T>(&self, path: &str, query: Option<&[(&str, String)]>) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
+        let timestamp = current_timestamp_millis();
+        let headers = auth.sign(&timestamp, "DELETE", path, "");
+
+        let url = format!("{}{}", self.private_base_url, path);
+
+        let mut req = self
+            .http
+            .request(Method::DELETE, url)
+            .header("API-KEY", headers.api_key)
+            .header("API-TIMESTAMP", headers.api_timestamp)
+            .header("API-SIGN", headers.api_sign);
+
+        if let Some(query) = query {
+            req = req.query(query);
+        }
+
+        let res = req
+            .send()
+            .await
+            .map_err(|e| GmoFxError::Http(e.to_string()))?;
+        let api_res: ApiResponse<T> = res
+            .json()
+            .await
+            .map_err(|e| GmoFxError::Json(e.to_string()))?;
+
+        if api_res.status != 0 {
+            return Err(GmoFxError::Api {
+                status: api_res.status,
+                messages: api_res.messages,
+            });
+        }
+
+        Ok(api_res.data)
+    }
 }
 
 fn current_timestamp_millis() -> String {
