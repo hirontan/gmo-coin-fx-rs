@@ -1,1 +1,5 @@
-// WebSocket support will be implemented after the REST MVP is stable.
+pub mod public;
+pub mod private;
+
+pub use public::PublicWsClient;
+pub use private::PrivateWsClient;
