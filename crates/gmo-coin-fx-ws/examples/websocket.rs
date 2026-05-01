@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Waiting for messages...");
     for _ in 0..5 {
         if let Some(msg) = client.next_message().await? {
-            println!("Received: {}", msg);
+            println!("Received Event: {:?}", msg);
         }
     }
 
