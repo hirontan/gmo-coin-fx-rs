@@ -1,7 +1,7 @@
 use crate::auth::AuthSigner;
 use crate::rest::RestClient;
 use gmo_coin_fx_core::{
-    models::{AccountAsset, ActiveOrders, Order, OrderRequest, Ticker},
+    models::{AccountAsset, ActiveOrders, Order, OrderRequest, Ticker, ApiStatus, Kline, Symbol},
     Result,
 };
 
@@ -48,6 +48,28 @@ impl GmoFxClient {
 
     pub async fn ticker(&self) -> Result<Vec<Ticker>> {
         self.rest.public_get("/v1/ticker").await
+    }
+
+    pub async fn status(&self) -> Result<ApiStatus> {
+        self.rest.public_get("/v1/status").await
+    }
+
+    pub async fn klines(
+        &self,
+        symbol: &str,
+        price_type: &str,
+        interval: &str,
+        date: &str,
+    ) -> Result<Vec<Kline>> {
+        let path = format!(
+            "/v1/klines?symbol={}&priceType={}&interval={}&date={}",
+            symbol, price_type, interval, date
+        );
+        self.rest.public_get(&path).await
+    }
+
+    pub async fn symbols(&self) -> Result<Vec<Symbol>> {
+        self.rest.public_get("/v1/symbols").await
     }
 
     pub async fn assets(&self) -> Result<Vec<AccountAsset>> {
