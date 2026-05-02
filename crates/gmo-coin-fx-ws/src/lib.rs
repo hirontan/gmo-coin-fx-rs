@@ -1,5 +1,5 @@
-pub mod public;
 pub mod private;
+pub mod public;
 
-pub use public::PublicWsClient;
 pub use private::PrivateWsClient;
+pub use public::PublicWsClient;
