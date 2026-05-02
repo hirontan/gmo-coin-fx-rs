@@ -1,6 +1,8 @@
 use futures_util::{SinkExt, StreamExt};
 use gmo_coin_fx_client::GmoFxClient;
-use gmo_coin_fx_core::{models::ws::SubscribeCommand, models::ws_events::PrivateWsMessage, GmoFxError, Result};
+use gmo_coin_fx_core::{
+    models::ws::SubscribeCommand, models::ws_events::PrivateWsMessage, GmoFxError, Result,
+};
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -8,7 +10,8 @@ use url::Url;
 
 pub const PRIVATE_WS_URL: &str = "wss://forex-api.coin.z.com/ws/private/v1";
 
-type WsStream = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 pub struct PrivateWsClient {
     ws_stream: WsStream,
@@ -29,7 +32,9 @@ impl PrivateWsClient {
         })
     }
 
-    async fn connect_stream(client: &GmoFxClient) -> Result<(WsStream, tokio::task::JoinHandle<()>)> {
+    async fn connect_stream(
+        client: &GmoFxClient,
+    ) -> Result<(WsStream, tokio::task::JoinHandle<()>)> {
         let auth = client.ws_auth_post().await?;
         let url_str = format!("{}/{}", PRIVATE_WS_URL, auth.token);
         let url = Url::parse(&url_str).map_err(|e| GmoFxError::Http(e.to_string()))?;
@@ -69,8 +74,8 @@ impl PrivateWsClient {
         loop {
             match self.ws_stream.next().await {
                 Some(Ok(Message::Text(text))) => {
-                    let event: PrivateWsMessage = serde_json::from_str(&text)
-                        .map_err(|e| GmoFxError::Json(e.to_string()))?;
+                    let event: PrivateWsMessage =
+                        serde_json::from_str(&text).map_err(|e| GmoFxError::Json(e.to_string()))?;
                     return Ok(Some(event));
                 }
                 Some(Ok(Message::Ping(data))) => {

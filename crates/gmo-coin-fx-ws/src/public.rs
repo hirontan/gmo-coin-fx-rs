@@ -1,5 +1,7 @@
 use futures_util::{SinkExt, StreamExt};
-use gmo_coin_fx_core::{models::ws::SubscribeCommand, models::ws_events::PublicWsMessage, GmoFxError, Result};
+use gmo_coin_fx_core::{
+    models::ws::SubscribeCommand, models::ws_events::PublicWsMessage, GmoFxError, Result,
+};
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -7,7 +9,8 @@ use url::Url;
 
 pub const PUBLIC_WS_URL: &str = "wss://forex-api.coin.z.com/ws/public/v1";
 
-type WsStream = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 pub struct PublicWsClient {
     ws_stream: WsStream,
@@ -37,13 +40,14 @@ impl PublicWsClient {
             cmd = cmd.symbol(sym);
         }
         let msg = serde_json::to_string(&cmd).map_err(|e| GmoFxError::Json(e.to_string()))?;
-        
+
         self.ws_stream
             .send(Message::Text(msg))
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
-        
-        self.subscriptions.insert((channel.to_string(), symbol.map(String::from)));
+
+        self.subscriptions
+            .insert((channel.to_string(), symbol.map(String::from)));
         Ok(())
     }
 
@@ -51,8 +55,8 @@ impl PublicWsClient {
         loop {
             match self.ws_stream.next().await {
                 Some(Ok(Message::Text(text))) => {
-                    let event: PublicWsMessage = serde_json::from_str(&text)
-                        .map_err(|e| GmoFxError::Json(e.to_string()))?;
+                    let event: PublicWsMessage =
+                        serde_json::from_str(&text).map_err(|e| GmoFxError::Json(e.to_string()))?;
                     return Ok(Some(event));
                 }
                 Some(Ok(Message::Ping(data))) => {
