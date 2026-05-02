@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  ci:
+    name: CI (build & test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --all --release
+
+      - name: Test
+        run: cargo test --all
+
+  release:
+    name: Create GitHub Release
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: "Release ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## Installation
+
+            Add the following to your `Cargo.toml`:
+
+            ### REST API Client
+            ```toml
+            [dependencies]
+            gmo-coin-fx-client = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ steps.version.outputs.VERSION }}" }
+            ```
+
+            ### WebSocket Client
+            ```toml
+            [dependencies]
+            gmo-coin-fx-ws = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ steps.version.outputs.VERSION }}" }
+            ```
+
+            ### Core Models Only
+            ```toml
+            [dependencies]
+            gmo-coin-fx-core = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ steps.version.outputs.VERSION }}" }
+            ```
+          generate_release_notes: true

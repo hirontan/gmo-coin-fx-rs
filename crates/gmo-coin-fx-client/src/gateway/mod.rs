@@ -3,8 +3,8 @@ use crate::rest::RestClient;
 use gmo_coin_fx_core::{
     models::{
         AccountAsset, ActiveOrders, ApiStatus, CancelBulkOrderRequest, CancelOrderRequest,
-        CloseBulkOrderRequest, CloseOrderRequest, Execution, ExecutionsList, Kline, Order,
-        OrderRequest, Position, PositionSummary, PositionSummaryList, PositionsList, SpeedOrderRequest,
+        CloseBulkOrderRequest, CloseOrderRequest, ExecutionsList, Kline, Order,
+        OrderRequest, PositionSummaryList, PositionsList, SpeedOrderRequest,
         Symbol, Ticker, WsAuth,
     },
     Result,
