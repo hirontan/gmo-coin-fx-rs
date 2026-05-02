@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "hex",
  "hmac",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
