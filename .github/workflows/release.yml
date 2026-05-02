@@ -11,13 +11,15 @@ env:
 
 jobs:
   ci:
-    name: CI (build & test)
+    name: CI (build, lint & test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache cargo registry
         uses: actions/cache@v5
@@ -29,20 +31,52 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Build
+      - name: Cargo check
+        run: cargo check --all
+
+      - name: Clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Build (release profile)
         run: cargo build --all --release
 
       - name: Test
         run: cargo test --all
 
+  batonel:
+    name: Batonel Architectural Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install batonel
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Arcflect/batonel/main/scripts/install-batonel.sh \
+            | bash -s -- v1.13.0
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: batonel verify
+        run: batonel verify
+
+      - name: batonel audit
+        run: batonel audit
+
+      - name: batonel guard --strict
+        run: batonel guard --strict
+
   release:
     name: Create GitHub Release
-    needs: ci
+    needs: [ci, batonel]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # CHANGELOG 生成のため全履歴を取得
 
       - name: Extract version from tag
         id: version
