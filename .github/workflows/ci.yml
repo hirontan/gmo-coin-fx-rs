@@ -11,8 +11,8 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  check:
-    name: Check & Test
+  cargo-check:
+    name: Cargo Check & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,3 +43,24 @@ jobs:
 
       - name: Test
         run: cargo test --all
+
+  batonel-check:
+    name: Batonel Architectural Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install batonel
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Arcflect/batonel/main/scripts/install-batonel.sh \
+            | bash -s -- v1.13.0
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: batonel verify (構造整合性チェック)
+        run: batonel verify
+
+      - name: batonel audit (PR ゲート用コンプライアンスチェック)
+        run: batonel audit
+
+      - name: batonel guard (サイドカー整合性チェック / warnings も失敗扱い)
+        run: batonel guard --strict
