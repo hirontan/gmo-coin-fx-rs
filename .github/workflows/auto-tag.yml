@@ -1,0 +1,50 @@
+name: Auto Tag on Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  auto-tag:
+    name: Auto Tag Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # タグ一覧の確認に全履歴が必要
+
+      - name: Extract version from Cargo.toml
+        id: version
+        run: |
+          # ワークスペースルートの Cargo.toml ではなく、
+          # クレートの Cargo.toml から version を取得する（確実性のため）
+          VERSION=$(grep '^version' crates/gmo-coin-fx-core/Cargo.toml \
+            | head -1 \
+            | sed 's/version = "\(.*\)"/\1/')
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "TAG=v${VERSION}"    >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          if git tag --list | grep -qx "${{ steps.version.outputs.TAG }}"; then
+            echo "EXISTS=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.TAG }} already exists, skipping."
+          else
+            echo "EXISTS=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.TAG }} does not exist, will create."
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_check.outputs.EXISTS == 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.TAG }}" \
+                  -m "Release ${{ steps.version.outputs.TAG }}"
+          git push origin "${{ steps.version.outputs.TAG }}"
+          echo "✅ Tagged and pushed ${{ steps.version.outputs.TAG }}"
