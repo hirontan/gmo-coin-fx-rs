@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-04
+
+### Added
+- `.github/dependabot.yml` — Cargo・GitHub Actions の依存を週次で自動 PR
+- `.github/ISSUE_TEMPLATE/bug_report.md` — バグ報告テンプレート
+- `.github/ISSUE_TEMPLATE/feature_request.md` — 機能追加リクエストテンプレート
+- `.github/pull_request_template.md` — PR テンプレート（チェックリスト付き）
+- `SECURITY.md` — 脆弱性の報告ポリシー
+- CI に `msrv-check` ジョブ追加（Rust 1.75 での `cargo check` を保証）
+- CI に `doc-check` ジョブ追加（`RUSTDOCFLAGS=-D warnings` で doc 品質を担保）
+- 全 public API に `///` ドキュメントコメントを追加
+
 ## [0.2.0] - 2026-05-03
 
 ### Added
