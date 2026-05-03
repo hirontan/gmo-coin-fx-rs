@@ -5,7 +5,8 @@
 //!
 //! - **自動再接続**: ネットワーク切断時に Exponential Backoff で再接続を試みます。
 //! - **購読の復元**: 再接続成功後に以前の購読を自動で再送信します。
-//! - **型安全なデシリアライズ**: 受信 JSON を [`PublicWsMessage`] / [`PrivateWsMessage`] Enum に変換します。
+//! - **型安全なデシリアライズ**: 受信 JSON を `PublicWsMessage` / `PrivateWsMessage` Enum に変換します
+//!   ([`gmo_coin_fx_core::models::ws_events`] を参照)。
 //! - **トークン自動更新**: [`PrivateWsClient`] はバックグラウンドで 30 分ごとに認証トークンを延長します。
 
 pub mod private;
