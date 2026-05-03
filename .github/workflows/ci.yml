@@ -44,6 +44,54 @@ jobs:
       - name: Test
         run: cargo test --all
 
+  msrv-check:
+    name: MSRV Check (Rust 1.75)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust 1.75 toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.75"
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-msrv-
+
+      - name: Cargo check on MSRV
+        run: cargo check --all
+
+  doc-check:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-doc-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-doc-
+
+      - name: Build docs (errors fail the job)
+        run: cargo doc --no-deps --all
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
   batonel-check:
     name: Batonel Architectural Checks
     runs-on: ubuntu-latest
