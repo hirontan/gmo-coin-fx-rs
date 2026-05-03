@@ -1,26 +1,37 @@
-name: Auto Tag on Merge
+name: Auto Release on Merge
 
+# main へのプッシュ（=PR マージ）をトリガーに、
+# バージョンが上がっていれば CI → タグ → GitHub Release を一括実行する
 on:
   push:
     branches:
       - main
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_HOME: /home/runner/.cargo
+  CARGO_INCREMENTAL: 0
+
 jobs:
-  auto-tag:
-    name: Auto Tag Release
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. バージョンチェック: タグが未作成か確認
+  # ─────────────────────────────────────────────────────────────────────
+  check-version:
+    name: Check Version
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      should_release: ${{ steps.tag_check.outputs.should_release }}
+      version:        ${{ steps.version.outputs.VERSION }}
+      tag:            ${{ steps.version.outputs.TAG }}
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0  # タグ一覧の確認に全履歴が必要
+          fetch-depth: 0
 
       - name: Extract version from Cargo.toml
         id: version
         run: |
-          # ワークスペースルートの Cargo.toml ではなく、
-          # クレートの Cargo.toml から version を取得する（確実性のため）
           VERSION=$(grep '^version' crates/gmo-coin-fx-core/Cargo.toml \
             | head -1 \
             | sed 's/version = "\(.*\)"/\1/')
@@ -32,19 +43,134 @@ jobs:
         id: tag_check
         run: |
           if git tag --list | grep -qx "${{ steps.version.outputs.TAG }}"; then
-            echo "EXISTS=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${{ steps.version.outputs.TAG }} already exists, skipping."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.TAG }} already exists → skip release"
           else
-            echo "EXISTS=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ${{ steps.version.outputs.TAG }} does not exist, will create."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.TAG }} not found → will release"
           fi
 
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. CI: build / lint / test（バージョンが上がったときだけ実行）
+  # ─────────────────────────────────────────────────────────────────────
+  ci:
+    name: CI (build, lint & test)
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Cargo check
+        run: cargo check --all
+
+      - name: Clippy
+        run: cargo clippy --all -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Build (release profile)
+        run: cargo build --all --release
+
+      - name: Test
+        run: cargo test --all
+
+      - name: Build docs
+        run: cargo doc --no-deps --all
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. Batonel: 構造整合性チェック
+  # ─────────────────────────────────────────────────────────────────────
+  batonel:
+    name: Batonel Architectural Checks
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install batonel
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Arcflect/batonel/main/scripts/install-batonel.sh \
+            | bash -s -- v1.13.0
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: batonel verify
+        run: batonel verify
+
+      - name: batonel audit
+        run: batonel audit
+
+      - name: batonel guard --strict
+        run: batonel guard --strict
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. Release: タグ作成 + GitHub Release（CI と batonel が PASS した後）
+  # ─────────────────────────────────────────────────────────────────────
+  release:
+    name: Create Tag & GitHub Release
+    needs: [check-version, ci, batonel]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Create and push tag
-        if: steps.tag_check.outputs.EXISTS == 'false'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.TAG }}" \
-                  -m "Release ${{ steps.version.outputs.TAG }}"
-          git push origin "${{ steps.version.outputs.TAG }}"
-          echo "✅ Tagged and pushed ${{ steps.version.outputs.TAG }}"
+          git tag -a "${{ needs.check-version.outputs.tag }}" \
+                  -m "Release ${{ needs.check-version.outputs.tag }}"
+          git push origin "${{ needs.check-version.outputs.tag }}"
+          echo "✅ Tagged ${{ needs.check-version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check-version.outputs.tag }}
+          name: "Release ${{ needs.check-version.outputs.tag }}"
+          body: |
+            ## Installation
+
+            Add the following to your `Cargo.toml`:
+
+            ### REST API Client
+            ```toml
+            [dependencies]
+            gmo-coin-fx-client = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
+            ```
+
+            ### WebSocket Client
+            ```toml
+            [dependencies]
+            gmo-coin-fx-ws = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
+            ```
+
+            ### Core Models Only
+            ```toml
+            [dependencies]
+            gmo-coin-fx-core = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
+            ```
+          generate_release_notes: true
