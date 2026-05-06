@@ -39,7 +39,7 @@ impl PrivateWsClient {
         let url_str = format!("{}/{}", PRIVATE_WS_URL, auth.token);
         let url = Url::parse(&url_str).map_err(|e| GmoFxError::Http(e.to_string()))?;
 
-        let (ws_stream, _) = connect_async(url)
+        let (ws_stream, _) = connect_async(url.as_str())
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
 
@@ -62,7 +62,7 @@ impl PrivateWsClient {
         let msg = serde_json::to_string(&cmd).map_err(|e| GmoFxError::Json(e.to_string()))?;
 
         self.ws_stream
-            .send(Message::Text(msg))
+            .send(Message::Text(msg.into()))
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
 
@@ -115,7 +115,7 @@ impl PrivateWsClient {
                     for channel in subs {
                         let cmd = SubscribeCommand::new(&channel);
                         if let Ok(msg) = serde_json::to_string(&cmd) {
-                            let _ = self.ws_stream.send(Message::Text(msg)).await;
+                            let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
                     }
                     return Ok(());
