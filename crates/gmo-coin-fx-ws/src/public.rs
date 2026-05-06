@@ -28,7 +28,7 @@ impl PublicWsClient {
 
     async fn connect_stream() -> Result<WsStream> {
         let url = Url::parse(PUBLIC_WS_URL).map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let (ws_stream, _) = connect_async(url)
+        let (ws_stream, _) = connect_async(url.as_str())
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
         Ok(ws_stream)
@@ -42,7 +42,7 @@ impl PublicWsClient {
         let msg = serde_json::to_string(&cmd).map_err(|e| GmoFxError::Json(e.to_string()))?;
 
         self.ws_stream
-            .send(Message::Text(msg))
+            .send(Message::Text(msg.into()))
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
 
@@ -95,7 +95,7 @@ impl PublicWsClient {
                             cmd = cmd.symbol(sym);
                         }
                         if let Ok(msg) = serde_json::to_string(&cmd) {
-                            let _ = self.ws_stream.send(Message::Text(msg)).await;
+                            let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
                     }
                     return Ok(());
