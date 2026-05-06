@@ -15,9 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/ISSUE_TEMPLATE/feature_request.md` — 機能追加リクエストテンプレート
 - `.github/pull_request_template.md` — PR テンプレート（チェックリスト付き）
 - `SECURITY.md` — 脆弱性の報告ポリシー
-- CI に `msrv-check` ジョブ追加（Rust 1.75 での `cargo check` を保証）
+- CI に `msrv-check` ジョブ追加（Rust 1.86 での `cargo check --locked` を保証）
 - CI に `doc-check` ジョブ追加（`RUSTDOCFLAGS=-D warnings` で doc 品質を担保）
 - 全 public API に `///` ドキュメントコメントを追加
+- `.github/workflows/auto-tag.yml` — main へのマージで Cargo.toml のバージョンを読み自動タグ付け
+- `scripts/bump-version.sh` — PR でバージョンを上げるための専用スクリプト
+
+### Changed
+- MSRV を 1.75 → 1.86 に更新（依存クレートの edition2024 対応）
+- `msrv-check` CI を `--locked` で実行するよう変更（依存バージョンのピン留め）
 
 ## [0.2.0] - 2026-05-03
 
