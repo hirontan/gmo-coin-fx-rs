@@ -1,0 +1,106 @@
+name: Release Drafter
+
+# PR のマージごとにドラフトリリースのチェンジログを更新し、
+# main へのマージ後にバージョン同期 PR を自動作成する
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. PR ラベルを元にドラフトリリースを更新
+  # ─────────────────────────────────────────────────────────────────────
+  update-draft:
+    name: Update Release Draft
+    runs-on: ubuntu-latest
+    outputs:
+      resolved_version: ${{ steps.drafter.outputs.resolved_version }}
+      tag_name:         ${{ steps.drafter.outputs.tag_name }}
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        id: drafter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. main への push 時のみ: バージョン同期 PR を自動作成
+  #    （Cargo.toml のバージョンがドラフト版と違う場合）
+  # ─────────────────────────────────────────────────────────────────────
+  create-version-sync-pr:
+    name: Create Version Sync PR
+    needs: update-draft
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # RELEASE_TOKEN があれば使用（CI が PR 上で自動実行される）
+          # なければ GITHUB_TOKEN でフォールバック
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check if version sync is needed
+        id: check
+        run: |
+          TARGET="${{ needs.update-draft.outputs.resolved_version }}"
+          CURRENT=$(grep '^version' crates/gmo-coin-fx-core/Cargo.toml \
+            | head -1 \
+            | sed 's/version = "\(.*\)"/\1/')
+          echo "target=${TARGET}"   >> "$GITHUB_OUTPUT"
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          if [ "${TARGET}" = "${CURRENT}" ]; then
+            echo "needs_sync=false" >> "$GITHUB_OUTPUT"
+            echo "Version already synced (${CURRENT}), skipping PR."
+          else
+            echo "needs_sync=true" >> "$GITHUB_OUTPUT"
+            echo "Version mismatch: ${CURRENT} → ${TARGET}"
+          fi
+
+      - name: Bump versions in Cargo.toml files
+        if: steps.check.outputs.needs_sync == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.target }}"
+          for toml in \
+            crates/gmo-coin-fx-core/Cargo.toml \
+            crates/gmo-coin-fx-client/Cargo.toml \
+            crates/gmo-coin-fx-ws/Cargo.toml; do
+            sed -i "0,/^version = \"[^\"]*\"/{s/^version = \"[^\"]*\"/version = \"${VERSION}\"/}" "${toml}"
+          done
+          cargo generate-lockfile --quiet
+
+      - name: Create version sync pull request
+        if: steps.check.outputs.needs_sync == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: chore/release-version-sync-v${{ steps.check.outputs.target }}
+          delete-branch: true
+          title: "chore: sync version to v${{ steps.check.outputs.target }} with release drafter"
+          body: |
+            Automated version synchronization generated from release-drafter resolved version.
+            Target version: v${{ steps.check.outputs.target }}
+
+            - Updates Cargo.toml version
+            - Updates root package version in Cargo.lock
+
+            ```
+            Cargo.toml
+            ```
+
+            ```
+            Cargo.lock
+            ```
+          labels: |
+            chore
+            ci
+          commit-message: "chore: sync version to v${{ steps.check.outputs.target }} with release drafter"
+          assignees: ${{ github.actor }}

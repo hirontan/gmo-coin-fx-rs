@@ -1,7 +1,7 @@
 name: Auto Release on Merge
 
-# main へのプッシュ（=PR マージ）をトリガーに、
-# バージョンが上がっていれば CI → タグ → GitHub Release を一括実行する
+# main へのプッシュ（=バージョン同期 PR のマージ）をトリガーに、
+# バージョンが上がっていれば CI → タグ → ドラフトリリースを公開する
 on:
   push:
     branches:
@@ -123,10 +123,11 @@ jobs:
         run: batonel guard --strict
 
   # ─────────────────────────────────────────────────────────────────────
-  # 4. Release: タグ作成 + GitHub Release（CI と batonel が PASS した後）
+  # 4. Release: タグ作成 + ドラフトリリースを公開
+  #    （CI と batonel が PASS した後）
   # ─────────────────────────────────────────────────────────────────────
   release:
-    name: Create Tag & GitHub Release
+    name: Create Tag & Publish Release
     needs: [check-version, ci, batonel]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
@@ -146,31 +147,21 @@ jobs:
           git push origin "${{ needs.check-version.outputs.tag }}"
           echo "✅ Tagged ${{ needs.check-version.outputs.tag }}"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.check-version.outputs.tag }}
-          name: "Release ${{ needs.check-version.outputs.tag }}"
-          body: |
-            ## Installation
-
-            Add the following to your `Cargo.toml`:
-
-            ### REST API Client
-            ```toml
-            [dependencies]
-            gmo-coin-fx-client = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
-            ```
-
-            ### WebSocket Client
-            ```toml
-            [dependencies]
-            gmo-coin-fx-ws = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
-            ```
-
-            ### Core Models Only
-            ```toml
-            [dependencies]
-            gmo-coin-fx-core = { git = "https://github.com/${{ github.repository }}.git", tag = "${{ needs.check-version.outputs.tag }}" }
-            ```
-          generate_release_notes: true
+      - name: Publish draft release (or create new)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-version.outputs.tag }}"
+          # release-drafter が作成したドラフトリリースを探して公開する
+          DRAFT_ID=$(gh release list --json tagName,isDraft \
+            | jq -r ".[] | select(.isDraft==true and .tagName==\"${TAG}\") | .tagName" || true)
+          if [ -n "${DRAFT_ID}" ]; then
+            echo "Publishing existing draft release ${TAG}..."
+            gh release edit "${TAG}" --draft=false
+          else
+            echo "No draft found. Creating new release ${TAG}..."
+            gh release create "${TAG}" \
+              --title "Release ${TAG}" \
+              --generate-notes
+          fi
+          echo "✅ Release ${TAG} published"
