@@ -74,11 +74,7 @@ impl RestClient {
     }
 
     /// プライベート DELETE リクエストを送信します。
-    pub async fn private_delete<T>(
-        &self,
-        path: &str,
-        query: Option<&[(&str, String)]>,
-    ) -> Result<T>
+    pub async fn private_delete<T>(&self, path: &str, query: Option<&[(&str, String)]>) -> Result<T>
     where
         T: DeserializeOwned,
     {

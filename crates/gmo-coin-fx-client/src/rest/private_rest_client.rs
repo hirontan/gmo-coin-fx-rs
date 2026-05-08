@@ -60,8 +60,7 @@ impl PrivateRestClient {
         B: Serialize,
     {
         let timestamp = current_timestamp_millis();
-        let body_text =
-            serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let body_text = serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
         let headers = self.auth.sign(&timestamp, "POST", path, &body_text);
         let url = format!("{}{}", self.base_url, path);
 
@@ -86,8 +85,7 @@ impl PrivateRestClient {
         B: Serialize,
     {
         let timestamp = current_timestamp_millis();
-        let body_text =
-            serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
+        let body_text = serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
         let headers = self.auth.sign(&timestamp, "PUT", path, &body_text);
         let url = format!("{}{}", self.base_url, path);
 
