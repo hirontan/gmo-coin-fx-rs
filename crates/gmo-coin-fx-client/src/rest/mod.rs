@@ -1,221 +1,83 @@
-use gmo_coin_fx_core::{models::ApiResponse, GmoFxError, Result};
-use reqwest::Method;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::time::{SystemTime, UNIX_EPOCH};
+pub mod private_rest_client;
+pub mod public_rest_client;
+
+pub use private_rest_client::PrivateRestClient;
+pub use public_rest_client::PublicRestClient;
 
 use crate::auth::AuthSigner;
+use gmo_coin_fx_core::Result;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-const PUBLIC_BASE_URL: &str = "https://forex-api.coin.z.com/public";
-const PRIVATE_BASE_URL: &str = "https://forex-api.coin.z.com/private";
-
+/// パブリック／プライベート REST クライアントを束ねるファサード。
+///
+/// 上位の [`crate::gateway`] からはこの型を介して API を呼び出します。
 #[derive(Clone)]
 pub struct RestClient {
-    http: reqwest::Client,
-    auth: Option<AuthSigner>,
-    public_base_url: String,
-    private_base_url: String,
+    public: PublicRestClient,
+    private: Option<PrivateRestClient>,
 }
 
 impl RestClient {
+    /// 新しい [`RestClient`] を生成します。
+    ///
+    /// `auth` が `None` の場合はパブリック API のみ利用可能です。
     pub fn new(auth: Option<AuthSigner>) -> Self {
         Self {
-            http: reqwest::Client::new(),
-            auth,
-            public_base_url: PUBLIC_BASE_URL.to_string(),
-            private_base_url: PRIVATE_BASE_URL.to_string(),
+            public: PublicRestClient::new(),
+            private: auth.map(PrivateRestClient::new),
         }
     }
 
+    // ─── Public ────────────────────────────────────────────────────────
+
+    /// パブリック GET リクエストを送信します。
     pub async fn public_get<T>(&self, path: &str) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        let url = format!("{}{}", self.public_base_url, path);
-        let res = self
-            .http
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let api_res: ApiResponse<T> = res
-            .json()
-            .await
-            .map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        if api_res.status != 0 {
-            return Err(GmoFxError::Api {
-                status: api_res.status,
-                messages: api_res.messages,
-            });
-        }
-
-        Ok(api_res.data)
+        self.public.get(path).await
     }
 
+    // ─── Private ───────────────────────────────────────────────────────
+
+    fn priv_client(&self) -> Result<&PrivateRestClient> {
+        self.private
+            .as_ref()
+            .ok_or(gmo_coin_fx_core::GmoFxError::MissingCredentials)
+    }
+
+    /// プライベート GET リクエストを送信します。
     pub async fn private_get<T>(&self, path: &str, query: Option<&[(&str, String)]>) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
-        let timestamp = current_timestamp_millis();
-        let headers = auth.sign(&timestamp, "GET", path, "");
-
-        let url = format!("{}{}", self.private_base_url, path);
-
-        let mut req = self
-            .http
-            .request(Method::GET, url)
-            .header("API-KEY", headers.api_key)
-            .header("API-TIMESTAMP", headers.api_timestamp)
-            .header("API-SIGN", headers.api_sign);
-
-        if let Some(query) = query {
-            req = req.query(query);
-        }
-
-        let res = req
-            .send()
-            .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let api_res: ApiResponse<T> = res
-            .json()
-            .await
-            .map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        if api_res.status != 0 {
-            return Err(GmoFxError::Api {
-                status: api_res.status,
-                messages: api_res.messages,
-            });
-        }
-
-        Ok(api_res.data)
+        self.priv_client()?.get(path, query).await
     }
 
+    /// プライベート POST リクエストを送信します。
     pub async fn private_post<T, B>(&self, path: &str, body: &B) -> Result<T>
     where
         T: DeserializeOwned,
         B: Serialize,
     {
-        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
-        let timestamp = current_timestamp_millis();
-        let body_text = serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
-        let headers = auth.sign(&timestamp, "POST", path, &body_text);
-
-        let url = format!("{}{}", self.private_base_url, path);
-
-        let res = self
-            .http
-            .post(url)
-            .header("content-type", "application/json")
-            .header("API-KEY", headers.api_key)
-            .header("API-TIMESTAMP", headers.api_timestamp)
-            .header("API-SIGN", headers.api_sign)
-            .body(body_text)
-            .send()
-            .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-
-        let api_res: ApiResponse<T> = res
-            .json()
-            .await
-            .map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        if api_res.status != 0 {
-            return Err(GmoFxError::Api {
-                status: api_res.status,
-                messages: api_res.messages,
-            });
-        }
-
-        Ok(api_res.data)
+        self.priv_client()?.post(path, body).await
     }
 
+    /// プライベート PUT リクエストを送信します。
     pub async fn private_put<T, B>(&self, path: &str, body: &B) -> Result<T>
     where
         T: DeserializeOwned,
         B: Serialize,
     {
-        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
-        let timestamp = current_timestamp_millis();
-        let body_text = serde_json::to_string(body).map_err(|e| GmoFxError::Json(e.to_string()))?;
-        let headers = auth.sign(&timestamp, "PUT", path, &body_text);
-
-        let url = format!("{}{}", self.private_base_url, path);
-
-        let res = self
-            .http
-            .put(url)
-            .header("content-type", "application/json")
-            .header("API-KEY", headers.api_key)
-            .header("API-TIMESTAMP", headers.api_timestamp)
-            .header("API-SIGN", headers.api_sign)
-            .body(body_text)
-            .send()
-            .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-
-        let api_res: ApiResponse<T> = res
-            .json()
-            .await
-            .map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        if api_res.status != 0 {
-            return Err(GmoFxError::Api {
-                status: api_res.status,
-                messages: api_res.messages,
-            });
-        }
-
-        Ok(api_res.data)
+        self.priv_client()?.put(path, body).await
     }
 
+    /// プライベート DELETE リクエストを送信します。
     pub async fn private_delete<T>(&self, path: &str, query: Option<&[(&str, String)]>) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        let auth = self.auth.as_ref().ok_or(GmoFxError::MissingCredentials)?;
-        let timestamp = current_timestamp_millis();
-        let headers = auth.sign(&timestamp, "DELETE", path, "");
-
-        let url = format!("{}{}", self.private_base_url, path);
-
-        let mut req = self
-            .http
-            .request(Method::DELETE, url)
-            .header("API-KEY", headers.api_key)
-            .header("API-TIMESTAMP", headers.api_timestamp)
-            .header("API-SIGN", headers.api_sign);
-
-        if let Some(query) = query {
-            req = req.query(query);
-        }
-
-        let res = req
-            .send()
-            .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-        let api_res: ApiResponse<T> = res
-            .json()
-            .await
-            .map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        if api_res.status != 0 {
-            return Err(GmoFxError::Api {
-                status: api_res.status,
-                messages: api_res.messages,
-            });
-        }
-
-        Ok(api_res.data)
+        self.priv_client()?.delete(path, query).await
     }
-}
-
-fn current_timestamp_millis() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time before UNIX_EPOCH");
-
-    now.as_millis().to_string()
 }
