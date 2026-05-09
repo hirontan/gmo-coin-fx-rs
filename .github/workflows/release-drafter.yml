@@ -9,9 +9,8 @@ on:
   pull_request:
     types: [opened, reopened, labeled, unlabeled, synchronize]
 
-# release-drafter@v7でもNode20が実行される場合に有効にする
-# env:
-#   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
