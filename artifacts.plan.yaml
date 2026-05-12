@@ -103,3 +103,31 @@ artifacts:
       - OrderEvent
       - PositionEvent
       - PositionSummaryEvent
+
+  - name: leverage
+    module: domain-risk
+    role: risk_domain
+    status: planned
+    outputs:
+      - LeverageCalculator
+
+  - name: margin
+    module: domain-risk
+    role: risk_domain
+    status: planned
+    outputs:
+      - MarginCalculator
+
+  - name: position_size
+    module: domain-risk
+    role: risk_domain
+    status: planned
+    outputs:
+      - PositionSizer
+
+  - name: risk_guard
+    module: domain-risk
+    role: risk_domain
+    status: planned
+    outputs:
+      - RiskGuard

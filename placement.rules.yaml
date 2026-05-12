@@ -26,3 +26,15 @@ roles:
   policy:
     path: "crates/gmo-coin-fx-client/src/policy/"
     file_extension: rs
+
+  risk_domain:
+    path: "crates/domain-risk/src/"
+    file_extension: rs
+
+  risk_application:
+    path: "crates/application-risk/src/"
+    file_extension: rs
+
+  broker_infrastructure:
+    path: "crates/infrastructure-broker/src/"
+    file_extension: rs

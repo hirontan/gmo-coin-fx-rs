@@ -377,6 +377,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gmo-coin-fx-application-risk"
+version = "0.3.5"
+dependencies = [
+ "gmo-coin-fx-domain-risk",
+]
+
+[[package]]
 name = "gmo-coin-fx-client"
 version = "0.3.5"
 dependencies = [
@@ -401,6 +408,14 @@ dependencies = [
  "sha2",
  "thiserror",
 ]
+
+[[package]]
+name = "gmo-coin-fx-domain-risk"
+version = "0.3.5"
+
+[[package]]
+name = "gmo-coin-fx-infrastructure-broker"
+version = "0.3.5"
 
 [[package]]
 name = "gmo-coin-fx-ws"

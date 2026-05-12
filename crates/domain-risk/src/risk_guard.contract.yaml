@@ -1,0 +1,9 @@
+name: risk_guard
+module: domain-risk
+role: risk_domain
+path: crates/domain-risk/src/risk_guard.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

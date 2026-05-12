@@ -70,3 +70,29 @@ role_templates:
       - "Know concrete trading strategies"
       - "Own API credentials"
     implementation_size: "small"
+
+  risk_domain:
+    responsibilities:
+      - "Perform isolated FX risk calculations (leverage, margin, position sizing)"
+      - "Provide pure functions and state machines for risk decisions"
+    must_not:
+      - "Perform HTTP or WebSocket I/O"
+      - "Execute orders"
+    implementation_size: "medium"
+
+  risk_application:
+    responsibilities:
+      - "Coordinate between domain risk models and external state"
+      - "Evaluate order requests using domain rules before submission"
+    must_not:
+      - "Implement math formulas directly (delegate to domain)"
+      - "Call broker APIs directly without infrastructure"
+    implementation_size: "medium"
+
+  broker_infrastructure:
+    responsibilities:
+      - "Implement repository interfaces for fetching state and placing orders"
+      - "Abstract underlying GMO FX clients for application use"
+    must_not:
+      - "Contain business logic or risk formulas"
+    implementation_size: "medium"

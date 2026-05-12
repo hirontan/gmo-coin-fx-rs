@@ -1,0 +1,9 @@
+[package]
+name = "gmo-coin-fx-infrastructure-broker"
+version = "0.3.5"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
