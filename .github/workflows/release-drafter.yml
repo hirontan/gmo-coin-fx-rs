@@ -52,7 +52,7 @@ jobs:
         id: check
         run: |
           TARGET="${{ needs.update-draft.outputs.resolved_version }}"
-          CURRENT=$(grep '^version' crates/gmo-coin-fx-core/Cargo.toml \
+          CURRENT=$(grep '^version' crates/core/Cargo.toml \
             | head -1 \
             | sed 's/version = "\(.*\)"/\1/')
           echo "target=${TARGET}"   >> "$GITHUB_OUTPUT"
@@ -70,9 +70,12 @@ jobs:
         run: |
           VERSION="${{ steps.check.outputs.target }}"
           for toml in \
-            crates/gmo-coin-fx-core/Cargo.toml \
-            crates/gmo-coin-fx-client/Cargo.toml \
-            crates/gmo-coin-fx-ws/Cargo.toml; do
+            crates/core/Cargo.toml \
+            crates/client/Cargo.toml \
+            crates/ws/Cargo.toml \
+            crates/domain-risk/Cargo.toml \
+            crates/application-risk/Cargo.toml \
+            crates/infrastructure-broker/Cargo.toml; do
             sed -i "0,/^version = \"[^\"]*\"/{s/^version = \"[^\"]*\"/version = \"${VERSION}\"/}" "${toml}"
           done
           cargo generate-lockfile --quiet

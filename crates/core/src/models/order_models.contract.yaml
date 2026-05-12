@@ -1,7 +1,7 @@
-name: market_models
+name: order_models
 module: gmo_fx
 role: domain_model
-path: crates/gmo-coin-fx-core/src/models/market_models.rs
+path: crates/core/src/models/order_models.rs
 status: planned
 responsibilities:
   - TODO

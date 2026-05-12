@@ -7,7 +7,7 @@ description = "Async REST API client for the GMO Coin FX API"
 repository.workspace = true
 
 [dependencies]
-gmo-coin-fx-core = { path = "../gmo-coin-fx-core" }
+gmo-coin-fx-core = { path = "../core" }
 
 reqwest.workspace = true
 tokio.workspace = true

@@ -12,9 +12,9 @@ project:
 workspace:
   enabled: true
   members:
-    - crates/gmo-coin-fx-core
-    - crates/gmo-coin-fx-client
-    - crates/gmo-coin-fx-ws
+    - crates/core
+    - crates/client
+    - crates/ws
 
 modules:
   - name: gmo_fx

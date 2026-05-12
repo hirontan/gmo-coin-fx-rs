@@ -32,7 +32,7 @@ jobs:
       - name: Extract version from Cargo.toml
         id: version
         run: |
-          VERSION=$(grep '^version' crates/gmo-coin-fx-core/Cargo.toml \
+          VERSION=$(grep '^version' crates/core/Cargo.toml \
             | head -1 \
             | sed 's/version = "\(.*\)"/\1/')
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"

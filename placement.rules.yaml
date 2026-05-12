@@ -1,30 +1,30 @@
 roles:
   domain_model:
-    path: "crates/gmo-coin-fx-core/src/models/"
+    path: "crates/core/src/models/"
     file_extension: rs
 
   error:
-    path: "crates/gmo-coin-fx-core/src/"
+    path: "crates/core/src/"
     file_extension: rs
 
   auth:
-    path: "crates/gmo-coin-fx-client/src/auth/"
+    path: "crates/client/src/auth/"
     file_extension: rs
 
   rest_client:
-    path: "crates/gmo-coin-fx-client/src/rest/"
+    path: "crates/client/src/rest/"
     file_extension: rs
 
   api_gateway:
-    path: "crates/gmo-coin-fx-client/src/gateway/"
+    path: "crates/client/src/gateway/"
     file_extension: rs
 
   websocket_client:
-    path: "crates/gmo-coin-fx-ws/src/"
+    path: "crates/ws/src/"
     file_extension: rs
 
   policy:
-    path: "crates/gmo-coin-fx-client/src/policy/"
+    path: "crates/client/src/policy/"
     file_extension: rs
 
   risk_domain:
