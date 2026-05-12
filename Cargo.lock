@@ -412,6 +412,9 @@ dependencies = [
 [[package]]
 name = "gmo-coin-fx-domain-risk"
 version = "0.3.7"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
