@@ -7,4 +7,4 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-# Dependencies will be added here as the domain module grows
+thiserror.workspace = true

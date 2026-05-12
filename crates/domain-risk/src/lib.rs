@@ -1,3 +1,4 @@
+pub mod error;
 pub mod leverage;
 pub mod margin;
 pub mod position_size;
