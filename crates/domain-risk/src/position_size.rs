@@ -26,7 +26,13 @@ mod tests {
 
     #[test]
     fn test_notional_value_invalid() {
-        assert_eq!(notional_value(0.0, 157.56), Err(RiskError::InvalidQuantity(0.0)));
-        assert_eq!(notional_value(20_000.0, -1.0), Err(RiskError::InvalidPrice(-1.0)));
+        assert_eq!(
+            notional_value(0.0, 157.56),
+            Err(RiskError::InvalidQuantity(0.0))
+        );
+        assert_eq!(
+            notional_value(20_000.0, -1.0),
+            Err(RiskError::InvalidPrice(-1.0))
+        );
     }
 }

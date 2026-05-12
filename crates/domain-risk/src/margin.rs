@@ -29,8 +29,17 @@ mod tests {
 
     #[test]
     fn test_required_margin_invalid() {
-        assert_eq!(required_margin(0.0, 157.56, 25.0), Err(RiskError::InvalidQuantity(0.0)));
-        assert_eq!(required_margin(20_000.0, 0.0, 25.0), Err(RiskError::InvalidPrice(0.0)));
-        assert_eq!(required_margin(20_000.0, 157.56, -25.0), Err(RiskError::InvalidLeverage(-25.0)));
+        assert_eq!(
+            required_margin(0.0, 157.56, 25.0),
+            Err(RiskError::InvalidQuantity(0.0))
+        );
+        assert_eq!(
+            required_margin(20_000.0, 0.0, 25.0),
+            Err(RiskError::InvalidPrice(0.0))
+        );
+        assert_eq!(
+            required_margin(20_000.0, 157.56, -25.0),
+            Err(RiskError::InvalidLeverage(-25.0))
+        );
     }
 }
