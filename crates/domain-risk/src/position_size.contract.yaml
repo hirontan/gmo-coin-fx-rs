@@ -1,0 +1,9 @@
+name: position_size
+module: domain-risk
+role: risk_domain
+path: crates/domain-risk/src/position_size.rs
+status: planned
+responsibilities:
+  - TODO
+must_not:
+  - TODO

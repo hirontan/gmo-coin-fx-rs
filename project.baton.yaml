@@ -30,3 +30,38 @@ modules:
       - rate_limit_policy
       - websocket_auth
       - private_websocket_events
+
+  - name: domain-risk
+    path: crates/domain-risk/src
+    layer: domain
+    purpose: FX risk calculation and pre-order risk guard
+    owns:
+      - notional value calculation
+      - required margin calculation
+      - effective leverage calculation
+      - margin maintenance rate calculation
+      - position sizing
+      - order risk validation
+    must_not:
+      - call external APIs
+      - place orders
+      - fetch prices
+      - persist data
+      - decide trading signals
+
+  - name: application-risk
+    path: crates/application-risk/src
+    layer: application
+    purpose: Use domain risk calculations to evaluate order requests
+    depends_on:
+      - domain-risk
+    must_not:
+      - implement formulas directly
+      - call broker APIs directly
+
+  - name: infrastructure-broker
+    path: crates/infrastructure-broker/src
+    layer: infrastructure
+    purpose: Broker API access and external integrations
+    must_not:
+      - implement business risk formulas

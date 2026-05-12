@@ -1,0 +1,10 @@
+[package]
+name = "gmo-coin-fx-application-risk"
+version = "0.3.5"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gmo-coin-fx-domain-risk = { path = "../domain-risk" }
