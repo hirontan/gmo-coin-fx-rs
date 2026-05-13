@@ -59,3 +59,33 @@ template: |
   ```
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+autolabeler:
+  - label: 'breaking'
+    title:
+      - '/.*!:.*/'
+      - '/^.*\(.*\)!.*/'
+  - label: 'feat'
+    title:
+      - '/^feat: .*/'
+      - '/^feat\(.*\): .*/'
+  - label: 'fix'
+    title:
+      - '/^fix: .*/'
+      - '/^fix\(.*\): .*/'
+  - label: 'chore'
+    title:
+      - '/^chore: .*/'
+      - '/^chore\(.*\): .*/'
+  - label: 'deps'
+    title:
+      - '/^build\(deps.*?\): .*/'
+      - '/^chore\(deps.*?\): .*/'
+  - label: 'docs'
+    title:
+      - '/^docs: .*/'
+      - '/^docs\(.*\): .*/'
+  - label: 'ci'
+    title:
+      - '/^ci: .*/'
+      - '/^ci\(.*\): .*/'
