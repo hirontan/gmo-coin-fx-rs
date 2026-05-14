@@ -12,4 +12,7 @@ pub enum RiskError {
 
     #[error("invalid leverage: {0}")]
     InvalidLeverage(f64),
+
+    #[error("invalid equity: {0}")]
+    InvalidEquity(f64),
 }
