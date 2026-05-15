@@ -14,6 +14,30 @@ pub fn notional_value(quantity: f64, price: f64) -> Result<f64> {
     Ok(quantity * price)
 }
 
+/// Calculate the risk amount based on equity and risk percentage.
+pub fn risk_amount(equity: f64, risk_per_trade_pct: f64) -> Result<f64> {
+    if equity <= 0.0 {
+        return Err(RiskError::InvalidEquity(equity));
+    }
+    if risk_per_trade_pct <= 0.0 || risk_per_trade_pct > 1.0 {
+        return Err(RiskError::InvalidRiskPct(risk_per_trade_pct));
+    }
+    Ok(equity * risk_per_trade_pct)
+}
+
+/// Calculate the maximum safe quantity based on risk amount and stop distance.
+pub fn max_quantity_by_risk(
+    equity: f64,
+    risk_per_trade_pct: f64,
+    stop_distance: f64,
+) -> Result<f64> {
+    if stop_distance <= 0.0 {
+        return Err(RiskError::InvalidStopDistance(stop_distance));
+    }
+    let amount = risk_amount(equity, risk_per_trade_pct)?;
+    Ok(amount / stop_distance)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,6 +57,33 @@ mod tests {
         assert_eq!(
             notional_value(20_000.0, -1.0),
             Err(RiskError::InvalidPrice(-1.0))
+        );
+    }
+
+    #[test]
+    fn test_risk_amount_valid() {
+        let amt = risk_amount(300_000.0, 0.005).unwrap();
+        assert_eq!(amt, 1_500.0);
+    }
+
+    #[test]
+    fn test_max_quantity_by_risk_valid() {
+        let qty = max_quantity_by_risk(300_000.0, 0.005, 0.50).unwrap();
+        assert_eq!(qty, 3_000.0);
+    }
+
+    #[test]
+    fn test_invalid_risk_amount() {
+        assert_eq!(risk_amount(0.0, 0.005), Err(RiskError::InvalidEquity(0.0)));
+        assert_eq!(risk_amount(300_000.0, 0.0), Err(RiskError::InvalidRiskPct(0.0)));
+        assert_eq!(risk_amount(300_000.0, 1.5), Err(RiskError::InvalidRiskPct(1.5)));
+    }
+
+    #[test]
+    fn test_invalid_max_quantity_by_risk() {
+        assert_eq!(
+            max_quantity_by_risk(300_000.0, 0.005, 0.0),
+            Err(RiskError::InvalidStopDistance(0.0))
         );
     }
 }
