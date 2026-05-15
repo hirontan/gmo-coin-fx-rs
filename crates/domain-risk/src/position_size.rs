@@ -75,8 +75,14 @@ mod tests {
     #[test]
     fn test_invalid_risk_amount() {
         assert_eq!(risk_amount(0.0, 0.005), Err(RiskError::InvalidEquity(0.0)));
-        assert_eq!(risk_amount(300_000.0, 0.0), Err(RiskError::InvalidRiskPct(0.0)));
-        assert_eq!(risk_amount(300_000.0, 1.5), Err(RiskError::InvalidRiskPct(1.5)));
+        assert_eq!(
+            risk_amount(300_000.0, 0.0),
+            Err(RiskError::InvalidRiskPct(0.0))
+        );
+        assert_eq!(
+            risk_amount(300_000.0, 1.5),
+            Err(RiskError::InvalidRiskPct(1.5))
+        );
     }
 
     #[test]
