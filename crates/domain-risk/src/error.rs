@@ -18,4 +18,10 @@ pub enum RiskError {
 
     #[error("invalid margin: {0}")]
     InvalidMargin(f64),
+
+    #[error("invalid risk percentage: {0}")]
+    InvalidRiskPct(f64),
+
+    #[error("invalid stop distance: {0}")]
+    InvalidStopDistance(f64),
 }
