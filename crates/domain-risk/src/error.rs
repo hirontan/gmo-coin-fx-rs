@@ -15,4 +15,7 @@ pub enum RiskError {
 
     #[error("invalid equity: {0}")]
     InvalidEquity(f64),
+
+    #[error("invalid margin: {0}")]
+    InvalidMargin(f64),
 }
