@@ -57,12 +57,22 @@ mod tests {
     #[test]
     fn test_margin_rate_valid() {
         let rate = margin_rate(300_000.0, 126_048.0).unwrap();
-        assert!((rate - 237.99).abs() < 0.02, "Expected ~237.99%, got {}", rate);
+        assert!(
+            (rate - 237.99).abs() < 0.02,
+            "Expected ~237.99%, got {}",
+            rate
+        );
     }
 
     #[test]
     fn test_margin_rate_invalid() {
-        assert_eq!(margin_rate(0.0, 126_048.0), Err(RiskError::InvalidEquity(0.0)));
-        assert_eq!(margin_rate(300_000.0, 0.0), Err(RiskError::InvalidMargin(0.0)));
+        assert_eq!(
+            margin_rate(0.0, 126_048.0),
+            Err(RiskError::InvalidEquity(0.0))
+        );
+        assert_eq!(
+            margin_rate(300_000.0, 0.0),
+            Err(RiskError::InvalidMargin(0.0))
+        );
     }
 }
