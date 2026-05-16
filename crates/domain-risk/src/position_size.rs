@@ -38,6 +38,24 @@ pub fn max_quantity_by_risk(
     Ok(amount / stop_distance)
 }
 
+/// Calculate the maximum quantity based on effective leverage limit.
+pub fn max_quantity_by_leverage(
+    equity: f64,
+    max_effective_leverage: f64,
+    price: f64,
+) -> Result<f64> {
+    if equity <= 0.0 {
+        return Err(RiskError::InvalidEquity(equity));
+    }
+    if max_effective_leverage <= 0.0 {
+        return Err(RiskError::InvalidLeverage(max_effective_leverage));
+    }
+    if price <= 0.0 {
+        return Err(RiskError::InvalidPrice(price));
+    }
+    Ok((equity * max_effective_leverage) / price)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +109,19 @@ mod tests {
             max_quantity_by_risk(300_000.0, 0.005, 0.0),
             Err(RiskError::InvalidStopDistance(0.0))
         );
+    }
+
+    #[test]
+    fn test_max_quantity_by_leverage_valid() {
+        let qty = max_quantity_by_leverage(300_000.0, 3.0, 157.56).unwrap();
+        // Note: The issue stated 5711.0... but 300,000 * 3 / 157.56 is 5712.109...
+        assert!((qty - 5712.109).abs() < 0.01, "Expected ~5712.1, got {}", qty);
+    }
+
+    #[test]
+    fn test_max_quantity_by_leverage_invalid() {
+        assert_eq!(max_quantity_by_leverage(0.0, 3.0, 157.56), Err(RiskError::InvalidEquity(0.0)));
+        assert_eq!(max_quantity_by_leverage(300_000.0, 0.0, 157.56), Err(RiskError::InvalidLeverage(0.0)));
+        assert_eq!(max_quantity_by_leverage(300_000.0, 3.0, -1.0), Err(RiskError::InvalidPrice(-1.0)));
     }
 }
