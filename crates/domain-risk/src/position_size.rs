@@ -115,13 +115,26 @@ mod tests {
     fn test_max_quantity_by_leverage_valid() {
         let qty = max_quantity_by_leverage(300_000.0, 3.0, 157.56).unwrap();
         // Note: The issue stated 5711.0... but 300,000 * 3 / 157.56 is 5712.109...
-        assert!((qty - 5712.109).abs() < 0.01, "Expected ~5712.1, got {}", qty);
+        assert!(
+            (qty - 5712.109).abs() < 0.01,
+            "Expected ~5712.1, got {}",
+            qty
+        );
     }
 
     #[test]
     fn test_max_quantity_by_leverage_invalid() {
-        assert_eq!(max_quantity_by_leverage(0.0, 3.0, 157.56), Err(RiskError::InvalidEquity(0.0)));
-        assert_eq!(max_quantity_by_leverage(300_000.0, 0.0, 157.56), Err(RiskError::InvalidLeverage(0.0)));
-        assert_eq!(max_quantity_by_leverage(300_000.0, 3.0, -1.0), Err(RiskError::InvalidPrice(-1.0)));
+        assert_eq!(
+            max_quantity_by_leverage(0.0, 3.0, 157.56),
+            Err(RiskError::InvalidEquity(0.0))
+        );
+        assert_eq!(
+            max_quantity_by_leverage(300_000.0, 0.0, 157.56),
+            Err(RiskError::InvalidLeverage(0.0))
+        );
+        assert_eq!(
+            max_quantity_by_leverage(300_000.0, 3.0, -1.0),
+            Err(RiskError::InvalidPrice(-1.0))
+        );
     }
 }
