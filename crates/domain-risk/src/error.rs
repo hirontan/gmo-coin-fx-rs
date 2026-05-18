@@ -24,4 +24,7 @@ pub enum RiskError {
 
     #[error("invalid stop distance: {0}")]
     InvalidStopDistance(f64),
+
+    #[error("invalid unit: {0}")]
+    InvalidUnit(f64),
 }
