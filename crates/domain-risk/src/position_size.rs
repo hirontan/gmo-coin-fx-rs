@@ -158,7 +158,13 @@ mod tests {
 
     #[test]
     fn test_round_down_to_unit_invalid() {
-        assert_eq!(round_down_to_unit(5711.0, 0.0), Err(RiskError::InvalidUnit(0.0)));
-        assert_eq!(round_down_to_unit(-100.0, 1000.0), Err(RiskError::InvalidQuantity(-100.0)));
+        assert_eq!(
+            round_down_to_unit(5711.0, 0.0),
+            Err(RiskError::InvalidUnit(0.0))
+        );
+        assert_eq!(
+            round_down_to_unit(-100.0, 1000.0),
+            Err(RiskError::InvalidQuantity(-100.0))
+        );
     }
 }
