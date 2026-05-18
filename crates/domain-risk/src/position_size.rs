@@ -56,6 +56,17 @@ pub fn max_quantity_by_leverage(
     Ok((equity * max_effective_leverage) / price)
 }
 
+/// Round down the quantity to the nearest multiple of the trading unit.
+pub fn round_down_to_unit(quantity: f64, unit: f64) -> Result<f64> {
+    if unit <= 0.0 {
+        return Err(RiskError::InvalidUnit(unit));
+    }
+    if quantity < 0.0 {
+        return Err(RiskError::InvalidQuantity(quantity));
+    }
+    Ok((quantity / unit).floor() * unit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,6 +146,25 @@ mod tests {
         assert_eq!(
             max_quantity_by_leverage(300_000.0, 3.0, -1.0),
             Err(RiskError::InvalidPrice(-1.0))
+        );
+    }
+
+    #[test]
+    fn test_round_down_to_unit_valid() {
+        assert_eq!(round_down_to_unit(5711.0, 1000.0).unwrap(), 5000.0);
+        assert_eq!(round_down_to_unit(1666.0, 1000.0).unwrap(), 1000.0);
+        assert_eq!(round_down_to_unit(999.0, 1000.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_round_down_to_unit_invalid() {
+        assert_eq!(
+            round_down_to_unit(5711.0, 0.0),
+            Err(RiskError::InvalidUnit(0.0))
+        );
+        assert_eq!(
+            round_down_to_unit(-100.0, 1000.0),
+            Err(RiskError::InvalidQuantity(-100.0))
         );
     }
 }
