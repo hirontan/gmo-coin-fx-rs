@@ -1,0 +1,14 @@
+name: spread_guard
+module: gmo_fx
+role: policy
+path: crates/client/src/policy/spread_guard.rs
+status: planned
+responsibilities:
+  - "Define reusable trading safety policies"
+  - "Evaluate market conditions such as spread width"
+  - "Return explicit evaluation results for trading applications"
+must_not:
+  - "Place orders"
+  - "Contain strategy-specific buy/sell decisions"
+  - "Read API credentials"
+  - "Call external APIs directly"
