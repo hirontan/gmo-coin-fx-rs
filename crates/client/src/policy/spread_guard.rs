@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use gmo_coin_fx_core::{models::Ticker, GmoFxError, Result};
+use std::collections::HashMap;
 
 /// Spread threshold configuration for a specific symbol.
 #[derive(Debug, Clone)]
