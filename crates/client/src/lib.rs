@@ -28,5 +28,6 @@
 pub mod auth;
 pub mod gateway;
 pub mod rest;
+pub mod policy;
 
 pub use gateway::{GmoFxClient, GmoFxClientBuilder};
