@@ -83,6 +83,17 @@ artifacts:
     outputs:
       - RateLimitPolicy
 
+  - name: spread_guard
+    module: gmo_fx
+    role: policy
+    status: planned
+    inputs:
+      - Ticker
+      - SpreadThreshold
+    outputs:
+      - SpreadEvaluation
+      - StaticSpreadGuard
+
   - name: websocket_auth
     module: gmo_fx
     role: websocket_client
