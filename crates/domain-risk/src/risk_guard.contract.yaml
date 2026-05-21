@@ -4,6 +4,8 @@ role: risk_domain
 path: crates/domain-risk/src/risk_guard.rs
 status: planned
 responsibilities:
-  - TODO
+  - "Validate and calculate aggregated risk metrics before ordering or for notifications"
+  - "Coordinate sub-domain metrics like leverage, margin, and position sizing"
 must_not:
-  - TODO
+  - "Call external APIs directly"
+  - "Decide trading strategies or signals"
