@@ -121,8 +121,14 @@ mod tests {
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 2);
-        assert_eq!(result.reasons[0], "Effective leverage exceeds limit: 10.5x > 5.0x");
-        assert_eq!(result.reasons[1], "Margin maintenance rate is below threshold: 238% < 500%");
+        assert_eq!(
+            result.reasons[0],
+            "Effective leverage exceeds limit: 10.5x > 5.0x"
+        );
+        assert_eq!(
+            result.reasons[1],
+            "Margin maintenance rate is below threshold: 238% < 500%"
+        );
 
         // Validate that metrics are included
         assert_eq!(result.metrics.notional_value, 3_151_200.0);
