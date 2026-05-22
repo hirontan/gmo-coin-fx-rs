@@ -1,4 +1,4 @@
-use crate::types::RiskMetrics;
+use crate::types::{RiskCheckResult, RiskConfig, RiskMetrics};
 
 /// 注文前のリスク判定（注文可否判定）を行います。
 ///
@@ -23,6 +23,56 @@ pub fn calculate_risk_metrics(
         effective_leverage: eff_lev,
         margin_rate: rate,
         loss_per_1yen: quantity.abs(),
+    }
+}
+
+/// 注文前のリスク条件をチェックし、注文可能かどうかを判定します。
+pub fn check_order_risk(
+    equity: f64,
+    quantity: f64,
+    price: f64,
+    account_leverage: f64,
+    config: RiskConfig,
+) -> RiskCheckResult {
+    let mut reasons = Vec::new();
+
+    if quantity <= 0.0 {
+        reasons.push("Quantity must be greater than 0".to_string());
+    }
+    if equity <= 0.0 {
+        reasons.push("Equity must be greater than 0".to_string());
+    }
+    if price <= 0.0 {
+        reasons.push("Price must be greater than 0".to_string());
+    }
+    if account_leverage <= 0.0 {
+        reasons.push("Account leverage must be greater than 0".to_string());
+    }
+
+    let metrics = calculate_risk_metrics(equity, quantity, price, account_leverage);
+
+    // Only perform limit checks if basic inputs are valid.
+    if quantity > 0.0 && equity > 0.0 && price > 0.0 && account_leverage > 0.0 {
+        if metrics.effective_leverage > config.max_effective_leverage {
+            reasons.push(format!(
+                "Effective leverage exceeds limit: {:.1}x > {:.1}x",
+                metrics.effective_leverage, config.max_effective_leverage
+            ));
+        }
+        if metrics.margin_rate < config.min_margin_rate {
+            reasons.push(format!(
+                "Margin maintenance rate is below threshold: {:.0}% < {:.0}%",
+                metrics.margin_rate, config.min_margin_rate
+            ));
+        }
+    }
+
+    let allowed = reasons.is_empty();
+
+    RiskCheckResult {
+        allowed,
+        reasons,
+        metrics,
     }
 }
 
@@ -56,5 +106,65 @@ mod tests {
         assert_eq!(metrics.effective_leverage, 0.0);
         assert_eq!(metrics.margin_rate, 0.0);
         assert_eq!(metrics.loss_per_1yen, 20_000.0);
+    }
+
+    #[test]
+    fn test_check_order_risk_rejected_example() {
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 500.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+        };
+
+        let result = check_order_risk(300_000.0, 20_000.0, 157.56, 25.0, config);
+
+        assert!(!result.allowed);
+        assert_eq!(result.reasons.len(), 2);
+        assert_eq!(result.reasons[0], "Effective leverage exceeds limit: 10.5x > 5.0x");
+        assert_eq!(result.reasons[1], "Margin maintenance rate is below threshold: 238% < 500%");
+
+        // Validate that metrics are included
+        assert_eq!(result.metrics.notional_value, 3_151_200.0);
+        assert_eq!(result.metrics.required_margin, 126_048.0);
+        assert_eq!(result.metrics.effective_leverage, 10.504);
+        assert!((result.metrics.margin_rate - 237.99).abs() < 0.02);
+        assert_eq!(result.metrics.loss_per_1yen, 20_000.0);
+    }
+
+    #[test]
+    fn test_check_order_risk_allowed() {
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+        };
+
+        // Smaller quantity to reduce effective leverage
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, config);
+
+        assert!(result.allowed);
+        assert!(result.reasons.is_empty());
+        assert_eq!(result.metrics.notional_value, 787_800.0);
+        assert_eq!(result.metrics.required_margin, 31_512.0);
+        assert_eq!(result.metrics.effective_leverage, 2.626);
+        assert!((result.metrics.margin_rate - 952.01).abs() < 0.02);
+    }
+
+    #[test]
+    fn test_check_order_risk_invalid_inputs() {
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 500.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+        };
+
+        let result = check_order_risk(300_000.0, 0.0, 157.56, 25.0, config);
+
+        assert!(!result.allowed);
+        assert_eq!(result.reasons.len(), 1);
+        assert_eq!(result.reasons[0], "Quantity must be greater than 0");
     }
 }
