@@ -26,3 +26,14 @@ pub struct RiskMetrics {
     /// （USD/JPYのようなクロス円通貨ペアで有用）
     pub loss_per_1yen: f64,
 }
+
+/// 注文前リスクチェックの結果
+#[derive(Debug, Clone)]
+pub struct RiskCheckResult {
+    /// 注文が許可されるかどうか
+    pub allowed: bool,
+    /// 却下された理由（許可された場合は空）
+    pub reasons: Vec<String>,
+    /// 計算されたリスク指標
+    pub metrics: RiskMetrics,
+}
