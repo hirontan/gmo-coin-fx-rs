@@ -1,6 +1,8 @@
 use gmo_coin_fx_domain_risk::leverage::effective_leverage;
 use gmo_coin_fx_domain_risk::margin::{margin_rate, required_margin};
-use gmo_coin_fx_domain_risk::position_size::{max_quantity_by_leverage, max_quantity_by_risk, round_down_to_unit};
+use gmo_coin_fx_domain_risk::position_size::{
+    max_quantity_by_leverage, max_quantity_by_risk, round_down_to_unit,
+};
 use gmo_coin_fx_domain_risk::{check_order_risk, RiskConfig};
 
 #[test]
