@@ -11,6 +11,7 @@ GMO コイン FX API の Rust クライアントライブラリです。REST API
 | `gmo-coin-fx-core` | ドメインモデル・認証 (HMAC-SHA256) |
 | `gmo-coin-fx-client` | 非同期 REST API クライアント |
 | `gmo-coin-fx-ws` | WebSocket クライアント（自動再接続・型安全デシリアライズ） |
+| `gmo-coin-fx-domain-risk` | ポジションサイズ・証拠金・レバレッジ・注文前リスク判定 |
 
 ## インストール
 
@@ -137,6 +138,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - ✅ Private REST API: 資産・注文・アクティブ注文・約定・建玉・キャンセル・決済・スピード注文
 - ✅ Public WebSocket: ティッカー（自動再接続・購読復元）
 - ✅ Private WebSocket: 約定・建玉・注文イベント（自動再接続・トークン自動更新）
+
+## FXリスク計算
+
+レバレッジ、必要証拠金、証拠金維持率などの計算式や、注文前リスクチェック機能（`RiskGuard`）については、[FXリスク計算ドキュメント](docs/risk-calculation.md) を参照してください。
 
 ## ライセンス
 
