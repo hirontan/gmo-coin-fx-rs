@@ -27,4 +27,7 @@ pub enum RiskError {
 
     #[error("invalid unit: {0}")]
     InvalidUnit(f64),
+
+    #[error("invalid risk-reward ratio: {0}")]
+    InvalidRiskRewardRatio(f64),
 }

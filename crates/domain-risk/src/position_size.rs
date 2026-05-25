@@ -49,6 +49,17 @@ pub fn stop_distance_from_risk(equity: f64, risk_per_trade_pct: f64, quantity: f
     Ok(amount / quantity)
 }
 
+/// Calculate the take-profit price distance based on stop distance and risk-reward ratio.
+pub fn take_profit_distance(stop_distance: f64, risk_reward_ratio: f64) -> Result<f64> {
+    if stop_distance <= 0.0 {
+        return Err(RiskError::InvalidStopDistance(stop_distance));
+    }
+    if risk_reward_ratio <= 0.0 {
+        return Err(RiskError::InvalidRiskRewardRatio(risk_reward_ratio));
+    }
+    Ok(stop_distance * risk_reward_ratio)
+}
+
 /// Calculate the maximum quantity based on effective leverage limit.
 pub fn max_quantity_by_leverage(
     equity: f64,
@@ -202,6 +213,32 @@ mod tests {
         assert_eq!(
             stop_distance_from_risk(300_000.0, 1.5, 10_000.0),
             Err(RiskError::InvalidRiskPct(1.5))
+        );
+    }
+
+    #[test]
+    fn test_take_profit_distance_valid() {
+        let dist = take_profit_distance(0.50, 2.0).unwrap();
+        assert_eq!(dist, 1.0);
+    }
+
+    #[test]
+    fn test_take_profit_distance_invalid() {
+        assert_eq!(
+            take_profit_distance(0.0, 2.0),
+            Err(RiskError::InvalidStopDistance(0.0))
+        );
+        assert_eq!(
+            take_profit_distance(-0.5, 2.0),
+            Err(RiskError::InvalidStopDistance(-0.5))
+        );
+        assert_eq!(
+            take_profit_distance(0.5, 0.0),
+            Err(RiskError::InvalidRiskRewardRatio(0.0))
+        );
+        assert_eq!(
+            take_profit_distance(0.5, -1.0),
+            Err(RiskError::InvalidRiskRewardRatio(-1.0))
         );
     }
 }
