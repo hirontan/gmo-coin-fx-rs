@@ -38,6 +38,22 @@ pub fn max_quantity_by_risk(
     Ok(amount / stop_distance)
 }
 
+/// Calculate the stop-loss price distance based on equity, risk percentage, and quantity.
+///
+/// This is the inverse of `max_quantity_by_risk`.
+pub fn stop_distance_from_risk(
+    equity: f64,
+    risk_per_trade_pct: f64,
+    quantity: f64,
+) -> Result<f64> {
+    if quantity <= 0.0 {
+        return Err(RiskError::InvalidQuantity(quantity));
+    }
+    let amount = risk_amount(equity, risk_per_trade_pct)?;
+    Ok(amount / quantity)
+}
+
+
 /// Calculate the maximum quantity based on effective leverage limit.
 pub fn max_quantity_by_leverage(
     equity: f64,
