@@ -60,7 +60,6 @@ pub fn take_profit_distance(stop_distance: f64, risk_reward_ratio: f64) -> Resul
     Ok(stop_distance * risk_reward_ratio)
 }
 
-
 /// Calculate the maximum quantity based on effective leverage limit.
 pub fn max_quantity_by_leverage(
     equity: f64,
