@@ -2,8 +2,11 @@ name: position_size
 module: domain-risk
 role: risk_domain
 path: crates/domain-risk/src/position_size.rs
-status: planned
+status: done
 responsibilities:
-  - TODO
+  - "Calculate position sizing metrics (notional value, maximum quantity by risk/leverage)"
+  - "Calculate stop-loss price distance from risk criteria"
+  - "Perform quantity rounding to trading unit limits"
 must_not:
-  - TODO
+  - "Call external APIs directly"
+  - "Decide trading strategies or signals"

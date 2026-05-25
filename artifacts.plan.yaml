@@ -132,7 +132,7 @@ artifacts:
   - name: position_size
     module: domain-risk
     role: risk_domain
-    status: planned
+    status: done
     outputs:
       - PositionSizer
 
