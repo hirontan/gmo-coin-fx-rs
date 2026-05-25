@@ -31,6 +31,8 @@ $$\text{Loss Per 1 Yen} = \text{Quantity}$$
 ### 6. Position Sizing
 * **Max Quantity by Risk**: The maximum quantity that can be traded based on the maximum risk amount (derived from equity and trade risk percentage) and the stop-loss distance.
   $$\text{Max Quantity by Risk} = \frac{\text{Equity} \times \text{Risk Per Trade (\%)}}{\text{Stop Distance}}$$
+* **Stop Distance from Risk**: The stop-loss price distance based on equity, risk percentage, and quantity (the inverse of *Max Quantity by Risk*).
+  $$\text{Stop Distance} = \frac{\text{Equity} \times \text{Risk Per Trade (\%)}}{\text{Quantity}}$$
 * **Max Quantity by Leverage**: The maximum quantity that can be traded while staying within a target maximum effective leverage limit.
   $$\text{Max Quantity by Leverage} = \frac{\text{Equity} \times \text{Max Effective Leverage}}{\text{Price}}$$
 * **Round Down to Unit**: Positions must be rounded down to the nearest integer multiple of the trading unit (e.g., 1,000 units).
