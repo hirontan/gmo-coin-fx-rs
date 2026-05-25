@@ -216,4 +216,30 @@ mod tests {
             Err(RiskError::InvalidRiskPct(1.5))
         );
     }
+
+    #[test]
+    fn test_take_profit_distance_valid() {
+        let dist = take_profit_distance(0.50, 2.0).unwrap();
+        assert_eq!(dist, 1.0);
+    }
+
+    #[test]
+    fn test_take_profit_distance_invalid() {
+        assert_eq!(
+            take_profit_distance(0.0, 2.0),
+            Err(RiskError::InvalidStopDistance(0.0))
+        );
+        assert_eq!(
+            take_profit_distance(-0.5, 2.0),
+            Err(RiskError::InvalidStopDistance(-0.5))
+        );
+        assert_eq!(
+            take_profit_distance(0.5, 0.0),
+            Err(RiskError::InvalidRiskRewardRatio(0.0))
+        );
+        assert_eq!(
+            take_profit_distance(0.5, -1.0),
+            Err(RiskError::InvalidRiskRewardRatio(-1.0))
+        );
+    }
 }
