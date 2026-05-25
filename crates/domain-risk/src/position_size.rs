@@ -183,4 +183,31 @@ mod tests {
             Err(RiskError::InvalidQuantity(-100.0))
         );
     }
+
+    #[test]
+    fn test_stop_distance_from_risk_valid() {
+        let dist = stop_distance_from_risk(300_000.0, 0.005, 10_000.0).unwrap();
+        assert_eq!(dist, 0.15);
+    }
+
+    #[test]
+    fn test_stop_distance_from_risk_invalid() {
+        assert_eq!(
+            stop_distance_from_risk(300_000.0, 0.005, 0.0),
+            Err(RiskError::InvalidQuantity(0.0))
+        );
+        assert_eq!(
+            stop_distance_from_risk(300_000.0, 0.005, -100.0),
+            Err(RiskError::InvalidQuantity(-100.0))
+        );
+        assert_eq!(
+            stop_distance_from_risk(0.0, 0.005, 10_000.0),
+            Err(RiskError::InvalidEquity(0.0))
+        );
+        assert_eq!(
+            stop_distance_from_risk(300_000.0, 1.5, 10_000.0),
+            Err(RiskError::InvalidRiskPct(1.5))
+        );
+    }
 }
+
