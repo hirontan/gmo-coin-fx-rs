@@ -62,7 +62,6 @@ pub fn aggregate_risk_metrics(
     }
 }
 
-
 /// 注文前のリスク条件をチェックし、注文可能かどうかを判定します。
 pub fn check_order_risk(
     equity: f64,
