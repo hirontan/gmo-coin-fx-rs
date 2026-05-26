@@ -115,3 +115,42 @@ fn verify_order_safety() {
   ]
 }
 ```
+
+---
+
+## Portfolio-Level Risk Aggregation
+
+When holding multiple positions, portfolio-level risk metrics are calculated by aggregating individual positions:
+
+1. **Total Notional Value**: The sum of the absolute notional values of all open positions.
+   $$\text{Total Notional Value} = \sum \left( |\text{Quantity}_i| \times \text{Price}_i \right)$$
+2. **Total Required Margin**: The sum of the required margins of all open positions.
+   $$\text{Total Required Margin} = \sum \text{Required Margin}_i$$
+3. **Overall Effective Leverage**: Calculated based on the total notional value and the current equity.
+   $$\text{Overall Effective Leverage} = \frac{\text{Total Notional Value}}{\text{Equity}}$$
+4. **Overall Margin Maintenance Rate**:
+   $$\text{Overall Margin Maintenance Rate (\%)} = \frac{\text{Equity}}{\text{Total Required Margin}} \times 100$$
+5. **Total Loss Per 1 Yen**: The sum of the absolute adverse movement losses across all open positions.
+   $$\text{Total Loss Per 1 Yen} = \sum |\text{Quantity}_i|$$
+
+### Code Usage
+
+```rust
+use gmo_coin_fx_domain_risk::aggregate_risk_metrics;
+
+fn check_portfolio_risk() {
+    let equity = 300_000.0;
+    let leverage = 25.0;
+    
+    // List of open positions: (quantity, price, unrealized_pnl)
+    let positions = vec![
+        (10_000.0, 150.0, 0.0),  // Long 10,000 USD/JPY
+        (-5_000.0, 150.0, 0.0),  // Short 5,000 USD/JPY
+    ];
+
+    let metrics = aggregate_risk_metrics(equity, &positions, leverage);
+    println!("Total Notional Value: {} JPY", metrics.notional_value); // 2,250,000 JPY
+    println!("Overall Effective Leverage: {}x", metrics.effective_leverage); // 7.5x
+}
+```
+
