@@ -26,6 +26,43 @@ pub fn calculate_risk_metrics(
     }
 }
 
+/// Calculate total risk metrics across multiple open positions.
+pub fn aggregate_risk_metrics(
+    equity: f64,
+    positions: &[(f64, f64, f64)],
+    leverage: f64,
+) -> RiskMetrics {
+    let mut total_notional = 0.0;
+    let mut total_required = 0.0;
+    let mut total_loss_per_1yen = 0.0;
+
+    for &(quantity, price, _unrealized_pnl) in positions {
+        let abs_quantity = quantity.abs();
+        let notional = crate::position_size::notional_value(abs_quantity, price).unwrap_or(0.0);
+        let required = crate::margin::required_margin(abs_quantity, price, leverage).unwrap_or(0.0);
+        total_notional += notional;
+        total_required += required;
+        total_loss_per_1yen += abs_quantity;
+    }
+
+    let effective_leverage = if equity <= 0.0 {
+        0.0
+    } else {
+        total_notional / equity
+    };
+
+    let margin_rate = crate::margin::margin_rate(equity, total_required).unwrap_or(0.0);
+
+    RiskMetrics {
+        notional_value: total_notional,
+        required_margin: total_required,
+        effective_leverage,
+        margin_rate,
+        loss_per_1yen: total_loss_per_1yen,
+    }
+}
+
+
 /// 注文前のリスク条件をチェックし、注文可能かどうかを判定します。
 pub fn check_order_risk(
     equity: f64,
