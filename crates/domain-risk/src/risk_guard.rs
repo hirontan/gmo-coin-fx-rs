@@ -26,6 +26,42 @@ pub fn calculate_risk_metrics(
     }
 }
 
+/// Calculate total risk metrics across multiple open positions.
+pub fn aggregate_risk_metrics(
+    equity: f64,
+    positions: &[(f64, f64, f64)],
+    leverage: f64,
+) -> RiskMetrics {
+    let mut total_notional = 0.0;
+    let mut total_required = 0.0;
+    let mut total_loss_per_1yen = 0.0;
+
+    for &(quantity, price, _unrealized_pnl) in positions {
+        let abs_quantity = quantity.abs();
+        let notional = crate::position_size::notional_value(abs_quantity, price).unwrap_or(0.0);
+        let required = crate::margin::required_margin(abs_quantity, price, leverage).unwrap_or(0.0);
+        total_notional += notional;
+        total_required += required;
+        total_loss_per_1yen += abs_quantity;
+    }
+
+    let effective_leverage = if equity <= 0.0 {
+        0.0
+    } else {
+        total_notional / equity
+    };
+
+    let margin_rate = crate::margin::margin_rate(equity, total_required).unwrap_or(0.0);
+
+    RiskMetrics {
+        notional_value: total_notional,
+        required_margin: total_required,
+        effective_leverage,
+        margin_rate,
+        loss_per_1yen: total_loss_per_1yen,
+    }
+}
+
 /// 注文前のリスク条件をチェックし、注文可能かどうかを判定します。
 pub fn check_order_risk(
     equity: f64,
@@ -172,5 +208,38 @@ mod tests {
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
         assert_eq!(result.reasons[0], "Quantity must be greater than 0");
+    }
+
+    #[test]
+    fn test_aggregate_risk_metrics_multiple_positions() {
+        let equity = 300_000.0;
+        let positions = vec![
+            (10_000.0, 150.0, 0.0), // Buy 10,000 USD/JPY at 150.0. Notional: 1,500,000. Required margin (at 25x): 60,000
+            (-5_000.0, 150.0, 0.0), // Sell 5,000 USD/JPY at 150.0. Notional: 750,000. Required margin (at 25x): 30,000
+        ];
+        let leverage = 25.0;
+
+        let metrics = aggregate_risk_metrics(equity, &positions, leverage);
+
+        assert_eq!(metrics.notional_value, 2_250_000.0);
+        assert_eq!(metrics.required_margin, 90_000.0);
+        assert_eq!(metrics.effective_leverage, 7.5);
+        assert!((metrics.margin_rate - 333.33).abs() < 0.02);
+        assert_eq!(metrics.loss_per_1yen, 15_000.0);
+    }
+
+    #[test]
+    fn test_aggregate_risk_metrics_empty() {
+        let equity = 300_000.0;
+        let positions = vec![];
+        let leverage = 25.0;
+
+        let metrics = aggregate_risk_metrics(equity, &positions, leverage);
+
+        assert_eq!(metrics.notional_value, 0.0);
+        assert_eq!(metrics.required_margin, 0.0);
+        assert_eq!(metrics.effective_leverage, 0.0);
+        assert_eq!(metrics.margin_rate, 0.0);
+        assert_eq!(metrics.loss_per_1yen, 0.0);
     }
 }
