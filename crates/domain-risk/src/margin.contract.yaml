@@ -2,8 +2,10 @@ name: margin
 module: domain-risk
 role: risk_domain
 path: crates/domain-risk/src/margin.rs
-status: planned
+status: done
 responsibilities:
-  - TODO
+  - "Calculate required margin for positions"
+  - "Calculate margin maintenance rate from equity and required margin"
+  - "Calculate drawdown percentage from peak equity and current equity"
 must_not:
-  - TODO
+  - "Call external APIs directly"
