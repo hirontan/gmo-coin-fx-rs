@@ -24,11 +24,16 @@ $$\text{Effective Leverage} = \frac{\text{Notional Value}}{\text{Equity}}$$
 The percentage representing the current health of the margin account.
 $$\text{Margin Maintenance Rate (\%)} = \frac{\text{Equity}}{\text{Required Margin}} \times 100$$
 
-### 5. Adverse Movement Loss (1 Yen adverse change)
+### 5. Drawdown Percentage
+The percentage decline of the account equity from its historical peak value.
+$$\text{Drawdown (\%)} = \frac{\text{Peak Equity} - \text{Current Equity}}{\text{Peak Equity}} \times 100$$
+If the current equity is greater than or equal to the peak equity, the drawdown is $0\%$.
+
+### 6. Adverse Movement Loss (1 Yen adverse change)
 The estimated loss amount if the price moves against the position by $1$ quote unit (e.g. 1 Yen for cross-yen pairs).
 $$\text{Loss Per 1 Yen} = \text{Quantity}$$
 
-### 6. Position Sizing
+### 7. Position Sizing
 * **Max Quantity by Risk**: The maximum quantity that can be traded based on the maximum risk amount (derived from equity and trade risk percentage) and the stop-loss distance.
   $$\text{Max Quantity by Risk} = \frac{\text{Equity} \times \text{Risk Per Trade (\%)}}{\text{Stop Distance}}$$
 * **Stop Distance from Risk**: The stop-loss price distance based on equity, risk percentage, and quantity (the inverse of *Max Quantity by Risk*).

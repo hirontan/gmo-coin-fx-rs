@@ -28,6 +28,20 @@ pub fn margin_rate(equity: f64, required_margin: f64) -> Result<f64> {
     Ok((equity / required_margin) * 100.0)
 }
 
+/// Calculate the current drawdown percentage from peak equity and current equity.
+pub fn drawdown_pct(peak_equity: f64, current_equity: f64) -> Result<f64> {
+    if peak_equity <= 0.0 {
+        return Err(RiskError::InvalidEquity(peak_equity));
+    }
+    if current_equity < 0.0 {
+        return Err(RiskError::InvalidEquity(current_equity));
+    }
+    if current_equity >= peak_equity {
+        return Ok(0.0);
+    }
+    Ok(((peak_equity - current_equity) / peak_equity) * 100.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,6 +87,34 @@ mod tests {
         assert_eq!(
             margin_rate(300_000.0, 0.0),
             Err(RiskError::InvalidMargin(0.0))
+        );
+    }
+
+    #[test]
+    fn test_drawdown_pct_valid() {
+        let draw = drawdown_pct(350_000.0, 300_000.0).unwrap();
+        assert!((draw - 14.29).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_drawdown_pct_no_drawdown() {
+        assert_eq!(drawdown_pct(300_000.0, 300_000.0).unwrap(), 0.0);
+        assert_eq!(drawdown_pct(300_000.0, 350_000.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_drawdown_pct_invalid() {
+        assert_eq!(
+            drawdown_pct(0.0, 300_000.0),
+            Err(RiskError::InvalidEquity(0.0))
+        );
+        assert_eq!(
+            drawdown_pct(-100.0, 300_000.0),
+            Err(RiskError::InvalidEquity(-100.0))
+        );
+        assert_eq!(
+            drawdown_pct(300_000.0, -10.0),
+            Err(RiskError::InvalidEquity(-10.0))
         );
     }
 }
