@@ -28,6 +28,20 @@ pub fn margin_rate(equity: f64, required_margin: f64) -> Result<f64> {
     Ok((equity / required_margin) * 100.0)
 }
 
+/// Calculate the current drawdown percentage from peak equity and current equity.
+pub fn drawdown_pct(peak_equity: f64, current_equity: f64) -> Result<f64> {
+    if peak_equity <= 0.0 {
+        return Err(RiskError::InvalidEquity(peak_equity));
+    }
+    if current_equity < 0.0 {
+        return Err(RiskError::InvalidEquity(current_equity));
+    }
+    if current_equity >= peak_equity {
+        return Ok(0.0);
+    }
+    Ok(((peak_equity - current_equity) / peak_equity) * 100.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
