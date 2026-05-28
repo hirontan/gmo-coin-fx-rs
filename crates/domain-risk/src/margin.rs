@@ -89,4 +89,32 @@ mod tests {
             Err(RiskError::InvalidMargin(0.0))
         );
     }
+
+    #[test]
+    fn test_drawdown_pct_valid() {
+        let draw = drawdown_pct(350_000.0, 300_000.0).unwrap();
+        assert!((draw - 14.29).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_drawdown_pct_no_drawdown() {
+        assert_eq!(drawdown_pct(300_000.0, 300_000.0).unwrap(), 0.0);
+        assert_eq!(drawdown_pct(300_000.0, 350_000.0).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_drawdown_pct_invalid() {
+        assert_eq!(
+            drawdown_pct(0.0, 300_000.0),
+            Err(RiskError::InvalidEquity(0.0))
+        );
+        assert_eq!(
+            drawdown_pct(-100.0, 300_000.0),
+            Err(RiskError::InvalidEquity(-100.0))
+        );
+        assert_eq!(
+            drawdown_pct(300_000.0, -10.0),
+            Err(RiskError::InvalidEquity(-10.0))
+        );
+    }
 }
