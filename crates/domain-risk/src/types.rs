@@ -9,6 +9,8 @@ pub struct RiskConfig {
     pub risk_per_trade_pct: f64,
     /// 取引単位（例: 1000通貨）
     pub quantity_unit: f64,
+    /// 許容する最大ポジション数
+    pub max_open_positions: Option<usize>,
 }
 
 /// リスク計算の結果をまとめた指標

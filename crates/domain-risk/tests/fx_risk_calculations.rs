@@ -71,8 +71,9 @@ fn test_risk_guard_rejection() {
         min_margin_rate: 500.0,
         risk_per_trade_pct: 0.02,
         quantity_unit: 1000.0,
+        max_open_positions: None,
     };
-    let result = check_order_risk(equity, quantity, price, account_leverage, config);
+    let result = check_order_risk(equity, quantity, price, account_leverage, 0, config);
     assert!(!result.allowed);
     assert_eq!(result.reasons.len(), 2);
 }
