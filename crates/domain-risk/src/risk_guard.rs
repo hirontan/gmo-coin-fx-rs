@@ -236,7 +236,10 @@ mod tests {
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
-        assert_eq!(result.reasons[0], "Open position count exceeds limit: 3 >= 3");
+        assert_eq!(
+            result.reasons[0],
+            "Open position count exceeds limit: 3 >= 3"
+        );
     }
 
     #[test]
