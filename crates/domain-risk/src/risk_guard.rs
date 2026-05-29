@@ -68,6 +68,7 @@ pub fn check_order_risk(
     quantity: f64,
     price: f64,
     account_leverage: f64,
+    current_position_count: usize,
     config: RiskConfig,
 ) -> RiskCheckResult {
     let mut reasons = Vec::new();
@@ -100,6 +101,14 @@ pub fn check_order_risk(
                 "Margin maintenance rate is below threshold: {:.0}% < {:.0}%",
                 metrics.margin_rate, config.min_margin_rate
             ));
+        }
+        if let Some(max_positions) = config.max_open_positions {
+            if current_position_count >= max_positions {
+                reasons.push(format!(
+                    "Open position count exceeds limit: {} >= {}",
+                    current_position_count, max_positions
+                ));
+            }
         }
     }
 
@@ -151,9 +160,10 @@ mod tests {
             min_margin_rate: 500.0,
             risk_per_trade_pct: 0.02,
             quantity_unit: 1000.0,
+            max_open_positions: None,
         };
 
-        let result = check_order_risk(300_000.0, 20_000.0, 157.56, 25.0, config);
+        let result = check_order_risk(300_000.0, 20_000.0, 157.56, 25.0, 0, config);
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 2);
@@ -181,10 +191,11 @@ mod tests {
             min_margin_rate: 200.0,
             risk_per_trade_pct: 0.02,
             quantity_unit: 1000.0,
+            max_open_positions: None,
         };
 
         // Smaller quantity to reduce effective leverage
-        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, config);
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 0, config);
 
         assert!(result.allowed);
         assert!(result.reasons.is_empty());
@@ -201,13 +212,47 @@ mod tests {
             min_margin_rate: 500.0,
             risk_per_trade_pct: 0.02,
             quantity_unit: 1000.0,
+            max_open_positions: None,
         };
 
-        let result = check_order_risk(300_000.0, 0.0, 157.56, 25.0, config);
+        let result = check_order_risk(300_000.0, 0.0, 157.56, 25.0, 0, config);
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
         assert_eq!(result.reasons[0], "Quantity must be greater than 0");
+    }
+
+    #[test]
+    fn test_check_order_risk_position_limit_exceeded() {
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: Some(3),
+        };
+
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 3, config);
+
+        assert!(!result.allowed);
+        assert_eq!(result.reasons.len(), 1);
+        assert_eq!(result.reasons[0], "Open position count exceeds limit: 3 >= 3");
+    }
+
+    #[test]
+    fn test_check_order_risk_position_limit_not_exceeded() {
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: Some(3),
+        };
+
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 2, config);
+
+        assert!(result.allowed);
+        assert!(result.reasons.is_empty());
     }
 
     #[test]
