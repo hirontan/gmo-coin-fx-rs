@@ -161,3 +161,31 @@ fn check_portfolio_risk() {
 }
 ```
 
+---
+
+## Daily Loss Limit Guard
+
+To prevent catastrophic drawdowns under automated trading strategies, the daily realized loss should be checked against a configured maximum limit:
+
+- **Daily Loss Check**: If the cumulative daily realized loss exceeds `max_daily_loss`, any new order placements must be halted.
+- **Formula**:
+  $$\text{Loss Limit Exceeded} = (\text{Daily Realized PnL} < 0) \land (|\text{Daily Realized PnL}| > \text{Max Daily Loss})$$
+
+### Code Usage
+
+```rust
+use gmo_coin_fx_domain_risk::check_daily_loss_limit;
+
+fn verify_trading_halt() {
+    let daily_pnl = -6000.0;    // Realized loss of 6,000 JPY
+    let max_loss = 5000.0;      // Limit of 5,000 JPY
+
+    if check_daily_loss_limit(daily_pnl, max_loss) {
+        println!("Trading halted: daily loss limit exceeded.");
+    } else {
+        println!("Trading allowed.");
+    }
+}
+```
+
+

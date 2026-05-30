@@ -121,6 +121,20 @@ pub fn check_order_risk(
     }
 }
 
+/// Check if the daily realized loss exceeds the maximum configured daily loss limit.
+///
+/// Returns `true` if the daily loss limit is exceeded (i.e., trading should be halted),
+/// and `false` if the loss is within the limit (i.e., trading is allowed).
+pub fn check_daily_loss_limit(daily_realized_pnl: f64, max_daily_loss: f64) -> bool {
+    if max_daily_loss <= 0.0 {
+        return false; // Limit is not configured or disabled
+    }
+    if daily_realized_pnl >= 0.0 {
+        return false; // Daily PnL is in profit, limit not exceeded
+    }
+    daily_realized_pnl.abs() > max_daily_loss
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +303,29 @@ mod tests {
         assert_eq!(metrics.effective_leverage, 0.0);
         assert_eq!(metrics.margin_rate, 0.0);
         assert_eq!(metrics.loss_per_1yen, 0.0);
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_not_exceeded() {
+        assert!(!check_daily_loss_limit(-1000.0, 5000.0));
+        assert!(!check_daily_loss_limit(-5000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_exceeded() {
+        assert!(check_daily_loss_limit(-5000.1, 5000.0));
+        assert!(check_daily_loss_limit(-6000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_profit() {
+        assert!(!check_daily_loss_limit(0.0, 5000.0));
+        assert!(!check_daily_loss_limit(2000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_disabled() {
+        assert!(!check_daily_loss_limit(-10000.0, 0.0));
+        assert!(!check_daily_loss_limit(-10000.0, -100.0));
     }
 }
