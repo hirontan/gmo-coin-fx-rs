@@ -304,4 +304,28 @@ mod tests {
         assert_eq!(metrics.margin_rate, 0.0);
         assert_eq!(metrics.loss_per_1yen, 0.0);
     }
+
+    #[test]
+    fn test_check_daily_loss_limit_not_exceeded() {
+        assert!(!check_daily_loss_limit(-1000.0, 5000.0));
+        assert!(!check_daily_loss_limit(-5000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_exceeded() {
+        assert!(check_daily_loss_limit(-5000.1, 5000.0));
+        assert!(check_daily_loss_limit(-6000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_profit() {
+        assert!(!check_daily_loss_limit(0.0, 5000.0));
+        assert!(!check_daily_loss_limit(2000.0, 5000.0));
+    }
+
+    #[test]
+    fn test_check_daily_loss_limit_disabled() {
+        assert!(!check_daily_loss_limit(-10000.0, 0.0));
+        assert!(!check_daily_loss_limit(-10000.0, -100.0));
+    }
 }
