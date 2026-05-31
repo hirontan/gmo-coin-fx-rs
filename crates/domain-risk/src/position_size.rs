@@ -256,4 +256,36 @@ mod tests {
             Err(RiskError::InvalidRiskRewardRatio(-1.0))
         );
     }
+
+    #[test]
+    fn test_pip_size_cross_yen() {
+        assert_eq!(pip_size("USD_JPY"), 0.01);
+        assert_eq!(pip_size("EUR_JPY"), 0.01);
+        assert_eq!(pip_size("GBP_JPY"), 0.01);
+        assert_eq!(pip_size("USDJPY"), 0.01);
+        assert_eq!(pip_size("eur_jpy"), 0.01);
+    }
+
+    #[test]
+    fn test_pip_size_non_yen() {
+        assert_eq!(pip_size("EUR_USD"), 0.0001);
+        assert_eq!(pip_size("GBP_USD"), 0.0001);
+        assert_eq!(pip_size("eur_usd"), 0.0001);
+    }
+
+    #[test]
+    fn test_pip_value_long() {
+        let val = pip_value(10_000.0, 0.01);
+        assert_eq!(val, 100.0);
+        let val_non_yen = pip_value(10_000.0, 0.0001);
+        assert_eq!(val_non_yen, 1.0);
+    }
+
+    #[test]
+    fn test_pip_value_short() {
+        let val = pip_value(-10_000.0, 0.01);
+        assert_eq!(val, 100.0);
+        let val_non_yen = pip_value(-10_000.0, 0.0001);
+        assert_eq!(val_non_yen, 1.0);
+    }
 }
