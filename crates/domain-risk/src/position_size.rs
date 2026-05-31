@@ -60,6 +60,21 @@ pub fn take_profit_distance(stop_distance: f64, risk_reward_ratio: f64) -> Resul
     Ok(stop_distance * risk_reward_ratio)
 }
 
+/// Get the pip size for a symbol (e.g., 0.01 for USD/JPY, 0.0001 for EUR/USD).
+pub fn pip_size(symbol: &str) -> f64 {
+    let symbol_upper = symbol.to_uppercase();
+    if symbol_upper.ends_with("JPY") || symbol_upper.ends_with("_JPY") {
+        0.01
+    } else {
+        0.0001
+    }
+}
+
+/// Calculate the pip value in quote currency for a given quantity and pip size.
+pub fn pip_value(quantity: f64, pip_size: f64) -> f64 {
+    quantity.abs() * pip_size
+}
+
 /// Calculate the maximum quantity based on effective leverage limit.
 pub fn max_quantity_by_leverage(
     equity: f64,
