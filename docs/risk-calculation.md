@@ -44,6 +44,9 @@ $$\text{Loss Per 1 Yen} = \text{Quantity}$$
   $$\text{Max Quantity by Leverage} = \frac{\text{Equity} \times \text{Max Effective Leverage}}{\text{Price}}$$
 * **Round Down to Unit**: Positions must be rounded down to the nearest integer multiple of the trading unit (e.g., 1,000 units).
   $$\text{Rounded Quantity} = \lfloor\frac{\text{Quantity}}{\text{Unit}}\rfloor \times \text{Unit}$$
+* **Pip Size**: The minimum standard price increment of a symbol. JPY-based pairs use $0.01$, while non-JPY pairs use $0.0001$.
+* **Pip Value**: The quote currency value of a single pip move for a given quantity.
+  $$\text{Pip Value} = |\text{Quantity}| \times \text{Pip Size}$$
 
 ---
 
