@@ -8,6 +8,8 @@ responsibilities:
   - "Calculate stop-loss price distance from risk criteria"
   - "Calculate take-profit distance based on stop distance and risk-reward ratio"
   - "Perform quantity rounding to trading unit limits"
+  - "Determine pip size for a currency pair from symbol metadata"
+  - "Calculate pip value from position quantity and pip size"
 must_not:
   - "Call external APIs directly"
   - "Decide trading strategies or signals"
