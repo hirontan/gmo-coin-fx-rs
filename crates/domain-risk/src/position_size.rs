@@ -60,6 +60,21 @@ pub fn take_profit_distance(stop_distance: f64, risk_reward_ratio: f64) -> Resul
     Ok(stop_distance * risk_reward_ratio)
 }
 
+/// Get the pip size for a symbol (e.g., 0.01 for USD/JPY, 0.0001 for EUR/USD).
+pub fn pip_size(symbol: &str) -> f64 {
+    let symbol_upper = symbol.to_uppercase();
+    if symbol_upper.ends_with("JPY") || symbol_upper.ends_with("_JPY") {
+        0.01
+    } else {
+        0.0001
+    }
+}
+
+/// Calculate the pip value in quote currency for a given quantity and pip size.
+pub fn pip_value(quantity: f64, pip_size: f64) -> f64 {
+    quantity.abs() * pip_size
+}
+
 /// Calculate the maximum quantity based on effective leverage limit.
 pub fn max_quantity_by_leverage(
     equity: f64,
@@ -240,5 +255,37 @@ mod tests {
             take_profit_distance(0.5, -1.0),
             Err(RiskError::InvalidRiskRewardRatio(-1.0))
         );
+    }
+
+    #[test]
+    fn test_pip_size_cross_yen() {
+        assert_eq!(pip_size("USD_JPY"), 0.01);
+        assert_eq!(pip_size("EUR_JPY"), 0.01);
+        assert_eq!(pip_size("GBP_JPY"), 0.01);
+        assert_eq!(pip_size("USDJPY"), 0.01);
+        assert_eq!(pip_size("eur_jpy"), 0.01);
+    }
+
+    #[test]
+    fn test_pip_size_non_yen() {
+        assert_eq!(pip_size("EUR_USD"), 0.0001);
+        assert_eq!(pip_size("GBP_USD"), 0.0001);
+        assert_eq!(pip_size("eur_usd"), 0.0001);
+    }
+
+    #[test]
+    fn test_pip_value_long() {
+        let val = pip_value(10_000.0, 0.01);
+        assert_eq!(val, 100.0);
+        let val_non_yen = pip_value(10_000.0, 0.0001);
+        assert_eq!(val_non_yen, 1.0);
+    }
+
+    #[test]
+    fn test_pip_value_short() {
+        let val = pip_value(-10_000.0, 0.01);
+        assert_eq!(val, 100.0);
+        let val_non_yen = pip_value(-10_000.0, 0.0001);
+        assert_eq!(val_non_yen, 1.0);
     }
 }
