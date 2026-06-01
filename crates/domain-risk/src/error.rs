@@ -30,4 +30,10 @@ pub enum RiskError {
 
     #[error("invalid risk-reward ratio: {0}")]
     InvalidRiskRewardRatio(f64),
+
+    #[error("invalid ATR: {0}")]
+    InvalidAtr(f64),
+
+    #[error("invalid multiplier: {0}")]
+    InvalidMultiplier(f64),
 }
