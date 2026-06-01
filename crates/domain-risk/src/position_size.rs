@@ -104,6 +104,28 @@ pub fn round_down_to_unit(quantity: f64, unit: f64) -> Result<f64> {
     Ok((quantity / unit).floor() * unit)
 }
 
+/// Calculate trailing stop distance from ATR.
+pub fn trailing_stop_from_atr(atr: f64, multiplier: f64) -> Result<f64> {
+    if atr <= 0.0 {
+        return Err(RiskError::InvalidAtr(atr));
+    }
+    if multiplier <= 0.0 {
+        return Err(RiskError::InvalidMultiplier(multiplier));
+    }
+    Ok(atr * multiplier)
+}
+
+/// Calculate trailing stop distance from fixed percentage of current price.
+pub fn trailing_stop_from_pct(price: f64, pct: f64) -> Result<f64> {
+    if price <= 0.0 {
+        return Err(RiskError::InvalidPrice(price));
+    }
+    if pct <= 0.0 || pct > 1.0 {
+        return Err(RiskError::InvalidRiskPct(pct));
+    }
+    Ok(price * pct)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,5 +309,57 @@ mod tests {
         assert_eq!(val, 100.0);
         let val_non_yen = pip_value(-10_000.0, 0.0001);
         assert_eq!(val_non_yen, 1.0);
+    }
+
+    #[test]
+    fn test_trailing_stop_from_atr_valid() {
+        let dist = trailing_stop_from_atr(0.5, 2.0).unwrap();
+        assert_eq!(dist, 1.0);
+    }
+
+    #[test]
+    fn test_trailing_stop_from_atr_invalid() {
+        assert_eq!(
+            trailing_stop_from_atr(0.0, 2.0),
+            Err(RiskError::InvalidAtr(0.0))
+        );
+        assert_eq!(
+            trailing_stop_from_atr(-0.5, 2.0),
+            Err(RiskError::InvalidAtr(-0.5))
+        );
+        assert_eq!(
+            trailing_stop_from_atr(0.5, 0.0),
+            Err(RiskError::InvalidMultiplier(0.0))
+        );
+        assert_eq!(
+            trailing_stop_from_atr(0.5, -1.0),
+            Err(RiskError::InvalidMultiplier(-1.0))
+        );
+    }
+
+    #[test]
+    fn test_trailing_stop_from_pct_valid() {
+        let dist = trailing_stop_from_pct(150.0, 0.01).unwrap();
+        assert_eq!(dist, 1.5);
+    }
+
+    #[test]
+    fn test_trailing_stop_from_pct_invalid() {
+        assert_eq!(
+            trailing_stop_from_pct(0.0, 0.01),
+            Err(RiskError::InvalidPrice(0.0))
+        );
+        assert_eq!(
+            trailing_stop_from_pct(-150.0, 0.01),
+            Err(RiskError::InvalidPrice(-150.0))
+        );
+        assert_eq!(
+            trailing_stop_from_pct(150.0, 0.0),
+            Err(RiskError::InvalidRiskPct(0.0))
+        );
+        assert_eq!(
+            trailing_stop_from_pct(150.0, 1.5),
+            Err(RiskError::InvalidRiskPct(1.5))
+        );
     }
 }

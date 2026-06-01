@@ -10,6 +10,7 @@ responsibilities:
   - "Perform quantity rounding to trading unit limits"
   - "Determine pip size for a currency pair from symbol metadata"
   - "Calculate pip value from position quantity and pip size"
+  - "Calculate trailing stop distance from ATR or fixed percentage of price"
 must_not:
   - "Call external APIs directly"
   - "Decide trading strategies or signals"

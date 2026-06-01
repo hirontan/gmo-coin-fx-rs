@@ -6,7 +6,7 @@ pub mod risk_guard;
 pub mod types;
 
 pub use margin::drawdown_pct;
-pub use position_size::{pip_size, pip_value};
+pub use position_size::{pip_size, pip_value, trailing_stop_from_atr, trailing_stop_from_pct};
 pub use risk_guard::{
     aggregate_risk_metrics, calculate_risk_metrics, check_daily_loss_limit, check_order_risk,
 };
