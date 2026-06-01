@@ -104,6 +104,28 @@ pub fn round_down_to_unit(quantity: f64, unit: f64) -> Result<f64> {
     Ok((quantity / unit).floor() * unit)
 }
 
+/// Calculate trailing stop distance from ATR.
+pub fn trailing_stop_from_atr(atr: f64, multiplier: f64) -> Result<f64> {
+    if atr <= 0.0 {
+        return Err(RiskError::InvalidAtr(atr));
+    }
+    if multiplier <= 0.0 {
+        return Err(RiskError::InvalidMultiplier(multiplier));
+    }
+    Ok(atr * multiplier)
+}
+
+/// Calculate trailing stop distance from fixed percentage of current price.
+pub fn trailing_stop_from_pct(price: f64, pct: f64) -> Result<f64> {
+    if price <= 0.0 {
+        return Err(RiskError::InvalidPrice(price));
+    }
+    if pct <= 0.0 || pct > 1.0 {
+        return Err(RiskError::InvalidRiskPct(pct));
+    }
+    Ok(price * pct)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
