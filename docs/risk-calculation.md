@@ -47,6 +47,11 @@ $$\text{Loss Per 1 Yen} = \text{Quantity}$$
 * **Pip Size**: The minimum standard price increment of a symbol. JPY-based pairs use $0.01$, while non-JPY pairs use $0.0001$.
 * **Pip Value**: The quote currency value of a single pip move for a given quantity.
   $$\text{Pip Value} = |\text{Quantity}| \times \text{Pip Size}$$
+* **Trailing Stop from ATR**: The trailing stop distance calculated using Average True Range (ATR) and a multiplier.
+  $$\text{Trailing Stop Distance (ATR)} = \text{ATR} \times \text{Multiplier}$$
+* **Trailing Stop from Percentage**: The trailing stop distance calculated as a percentage of the current price.
+  $$\text{Trailing Stop Distance (\%)} = \text{Price} \times \text{Percentage}$$
+
 
 ---
 
