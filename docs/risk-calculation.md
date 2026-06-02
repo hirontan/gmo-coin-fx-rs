@@ -134,6 +134,28 @@ fn verify_order_safety() {
 }
 ```
 
+### Human-Readable Formatting (Display Trait)
+
+Both `RiskMetrics` and `RiskCheckResult` implement the `Display` trait for human-readable output (e.g. for user UI or console logs).
+
+**Example output for `RiskMetrics`:**
+```
+Position Value: ¥3,151,200 | Required Margin: ¥126,048
+Effective Leverage: 10.5x | Margin Rate: 238.0%
+Loss per 1¥: ¥20,000
+```
+
+**Example output for `RiskCheckResult`:**
+```
+Status: Rejected
+Reasons:
+ - Effective leverage exceeds limit: 10.5x > 5.0x
+ - Margin maintenance rate is below threshold: 238% < 500%
+Position Value: ¥3,151,200 | Required Margin: ¥126,048
+Effective Leverage: 10.5x | Margin Rate: 238.0%
+Loss per 1¥: ¥20,000
+```
+
 ---
 
 ## Portfolio-Level Risk Aggregation
