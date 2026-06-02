@@ -7,7 +7,7 @@ responsibilities:
   - "Validate and calculate aggregated risk metrics before ordering or for notifications"
   - "Coordinate sub-domain metrics like leverage, margin, and position sizing"
   - "Calculate aggregated risk metrics across multiple open positions"
-  - "Validate order safety under constraints including leverage, margin rate, and maximum open positions"
+  - "Validate order safety under constraints including leverage, margin rate, risk per trade, and maximum open positions"
   - "Validate daily realized loss against configured maximum loss limits"
 must_not:
   - "Call external APIs directly"
