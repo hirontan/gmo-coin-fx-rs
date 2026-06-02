@@ -79,8 +79,9 @@ Using the formulas, the calculated risk metrics are:
 
 ### Role and Responsibility
 The **Risk Guard** acts as a safety-oriented check mechanism. Before placing any order, the system checks whether the proposed order can be safely executed under the configured risk constraints:
-1. Basic input sanity: checks that `quantity > 0`, `equity > 0`, `price > 0`, and `account_leverage > 0`.
+1. Basic input sanity: checks that `quantity > 0`, `equity > 0`, `price > 0`, `account_leverage > 0`, and when `stop_distance` is provided, `stop_distance > 0`.
 2. Threshold validations: checks that the resulting `Effective Leverage` does not exceed the allowed maximum, the resulting `Margin Maintenance Rate` does not drop below the minimum threshold, and the `current_position_count` does not meet or exceed the `max_open_positions` limit.
+3. Per-trade risk validation: when `stop_distance` is provided, validates that the potential loss (`quantity * stop_distance`) does not exceed the risk per trade limit (`equity * config.risk_per_trade_pct`).
 
 > [!IMPORTANT]
 > **Risk Guard does not generate or decide trading signals.**
@@ -108,6 +109,7 @@ fn verify_order_safety() {
         157.56,    // Price
         25.0,      // Account Leverage
         2,         // Current Position Count
+        Some(0.5), // Stop Distance (optional)
         config,
     );
 
@@ -126,7 +128,8 @@ fn verify_order_safety() {
   "allowed": false,
   "reasons": [
     "Effective leverage exceeds limit: 10.5x > 5.0x",
-    "Margin maintenance rate is below threshold: 238% < 500%"
+    "Margin maintenance rate is below threshold: 238% < 500%",
+    "Potential loss exceeds risk per trade limit: 10000.00 > 6000.00"
   ]
 }
 ```

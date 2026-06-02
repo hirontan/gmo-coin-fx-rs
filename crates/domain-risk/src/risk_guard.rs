@@ -69,6 +69,7 @@ pub fn check_order_risk(
     price: f64,
     account_leverage: f64,
     current_position_count: usize,
+    stop_distance: Option<f64>,
     config: RiskConfig,
 ) -> RiskCheckResult {
     let mut reasons = Vec::new();
@@ -84,6 +85,11 @@ pub fn check_order_risk(
     }
     if account_leverage <= 0.0 {
         reasons.push("Account leverage must be greater than 0".to_string());
+    }
+    if let Some(stop_dist) = stop_distance {
+        if stop_dist <= 0.0 {
+            reasons.push("Stop distance must be greater than 0".to_string());
+        }
     }
 
     let metrics = calculate_risk_metrics(equity, quantity, price, account_leverage);
@@ -108,6 +114,18 @@ pub fn check_order_risk(
                     "Open position count exceeds limit: {} >= {}",
                     current_position_count, max_positions
                 ));
+            }
+        }
+        if let Some(stop_dist) = stop_distance {
+            if stop_dist > 0.0 {
+                let potential_loss = quantity * stop_dist;
+                let max_allowed_loss = equity * config.risk_per_trade_pct;
+                if potential_loss > max_allowed_loss {
+                    reasons.push(format!(
+                        "Potential loss exceeds risk per trade limit: {:.2} > {:.2}",
+                        potential_loss, max_allowed_loss
+                    ));
+                }
             }
         }
     }
@@ -177,7 +195,7 @@ mod tests {
             max_open_positions: None,
         };
 
-        let result = check_order_risk(300_000.0, 20_000.0, 157.56, 25.0, 0, config);
+        let result = check_order_risk(300_000.0, 20_000.0, 157.56, 25.0, 0, None, config);
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 2);
@@ -209,7 +227,7 @@ mod tests {
         };
 
         // Smaller quantity to reduce effective leverage
-        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 0, config);
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 0, None, config);
 
         assert!(result.allowed);
         assert!(result.reasons.is_empty());
@@ -229,7 +247,7 @@ mod tests {
             max_open_positions: None,
         };
 
-        let result = check_order_risk(300_000.0, 0.0, 157.56, 25.0, 0, config);
+        let result = check_order_risk(300_000.0, 0.0, 157.56, 25.0, 0, None, config);
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
@@ -246,7 +264,7 @@ mod tests {
             max_open_positions: Some(3),
         };
 
-        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 3, config);
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 3, None, config);
 
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
@@ -266,10 +284,42 @@ mod tests {
             max_open_positions: Some(3),
         };
 
-        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 2, config);
+        let result = check_order_risk(300_000.0, 5_000.0, 157.56, 25.0, 2, None, config);
 
         assert!(result.allowed);
         assert!(result.reasons.is_empty());
+    }
+
+    #[test]
+    fn test_check_order_risk_stop_distance_validation() {
+        let config = RiskConfig {
+            max_effective_leverage: 25.0,
+            min_margin_rate: 100.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: None,
+        };
+
+        // Equity = 300,000, risk limit = 6,000
+        // Quantity = 10,000
+        // Case 1: stop_distance = 0.5 -> potential loss = 5,000 <= 6,000 (Allowed)
+        let result1 = check_order_risk(300_000.0, 10_000.0, 150.0, 25.0, 0, Some(0.5), config);
+        assert!(result1.allowed);
+
+        // Case 2: stop_distance = 0.7 -> potential loss = 7,000 > 6,000 (Rejected)
+        let result2 = check_order_risk(300_000.0, 10_000.0, 150.0, 25.0, 0, Some(0.7), config);
+        assert!(!result2.allowed);
+        assert_eq!(result2.reasons.len(), 1);
+        assert_eq!(
+            result2.reasons[0],
+            "Potential loss exceeds risk per trade limit: 7000.00 > 6000.00"
+        );
+
+        // Case 3: stop_distance = 0.0 (Rejected for invalid stop distance)
+        let result3 = check_order_risk(300_000.0, 10_000.0, 150.0, 25.0, 0, Some(0.0), config);
+        assert!(!result3.allowed);
+        assert_eq!(result3.reasons.len(), 1);
+        assert_eq!(result3.reasons[0], "Stop distance must be greater than 0");
     }
 
     #[test]

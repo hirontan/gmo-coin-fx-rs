@@ -73,7 +73,7 @@ fn test_risk_guard_rejection() {
         quantity_unit: 1000.0,
         max_open_positions: None,
     };
-    let result = check_order_risk(equity, quantity, price, account_leverage, 0, config);
+    let result = check_order_risk(equity, quantity, price, account_leverage, 0, None, config);
     assert!(!result.allowed);
     assert_eq!(result.reasons.len(), 2);
 }
