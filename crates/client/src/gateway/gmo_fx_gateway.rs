@@ -18,10 +18,43 @@ pub struct GmoFxClient {
     rest: RestClient,
 }
 
+/// リトライ制御のための設定。
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
+pub struct RetryConfig {
+    /// 最大リトライ回数
+    pub max_retries: u32,
+    /// 初回リトライ時の待機時間（ミリ秒）
+    pub base_delay_ms: u64,
+    /// 最大の待機時間（ミリ秒）
+    pub max_delay_ms: u64,
+}
+
+impl RetryConfig {
+    /// 新しい [`RetryConfig`] を生成します。
+    pub fn new(max_retries: u32, base_delay_ms: u64, max_delay_ms: u64) -> Self {
+        Self {
+            max_retries,
+            base_delay_ms,
+            max_delay_ms,
+        }
+    }
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            base_delay_ms: 100,
+            max_delay_ms: 2000,
+        }
+    }
+}
+
 /// [`GmoFxClient`] のビルダー。
 pub struct GmoFxClientBuilder {
     api_key: Option<String>,
     secret_key: Option<String>,
+    retry_config: Option<RetryConfig>,
 }
 
 impl GmoFxClientBuilder {
@@ -36,6 +69,12 @@ impl GmoFxClientBuilder {
         self
     }
 
+    /// 自動リトライを設定します。
+    pub fn retry(mut self, config: RetryConfig) -> Self {
+        self.retry_config = Some(config);
+        self
+    }
+
     /// [`GmoFxClient`] を構築します。
     pub fn build(self) -> GmoFxClient {
         let auth = match (self.api_key, self.secret_key) {
@@ -43,7 +82,7 @@ impl GmoFxClientBuilder {
             _ => None,
         };
         GmoFxClient {
-            rest: RestClient::new(auth),
+            rest: RestClient::new(auth, self.retry_config),
         }
     }
 }
@@ -54,6 +93,7 @@ impl GmoFxClient {
         GmoFxClientBuilder {
             api_key: None,
             secret_key: None,
+            retry_config: None,
         }
     }
 

@@ -30,4 +30,4 @@ pub mod gateway;
 pub mod policy;
 pub mod rest;
 
-pub use gateway::{GmoFxClient, GmoFxClientBuilder};
+pub use gateway::{GmoFxClient, GmoFxClientBuilder, RetryConfig};
