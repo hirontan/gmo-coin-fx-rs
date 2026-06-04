@@ -22,7 +22,10 @@ impl RestClient {
     /// 新しい [`RestClient`] を生成します。
     ///
     /// `auth` が `None` の場合はパブリック API のみ利用可能です。
-    pub fn new(auth: Option<AuthSigner>, retry_config: Option<crate::gateway::RetryConfig>) -> Self {
+    pub fn new(
+        auth: Option<AuthSigner>,
+        retry_config: Option<crate::gateway::RetryConfig>,
+    ) -> Self {
         Self {
             public: PublicRestClient::new(retry_config),
             private: auth.map(|a| PrivateRestClient::new(a, retry_config)),

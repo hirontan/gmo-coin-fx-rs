@@ -28,7 +28,13 @@ impl PrivateRestClient {
         }
     }
 
-    async fn request_with_retry<T, B>(&self, method: Method, path: &str, query: Option<&[(&str, String)]>, body: Option<&B>) -> Result<T>
+    async fn request_with_retry<T, B>(
+        &self,
+        method: Method,
+        path: &str,
+        query: Option<&[(&str, String)]>,
+        body: Option<&B>,
+    ) -> Result<T>
     where
         T: DeserializeOwned,
         B: Serialize,
@@ -43,7 +49,9 @@ impl PrivateRestClient {
                 Some(b) => serde_json::to_string(b).map_err(|e| GmoFxError::Json(e.to_string()))?,
                 None => "".to_string(),
             };
-            let headers = self.auth.sign(&timestamp, method.as_str(), path, &body_text);
+            let headers = self
+                .auth
+                .sign(&timestamp, method.as_str(), path, &body_text);
 
             let mut req = self
                 .http
@@ -57,7 +65,9 @@ impl PrivateRestClient {
             }
 
             if body.is_some() {
-                req = req.header("content-type", "application/json").body(body_text);
+                req = req
+                    .header("content-type", "application/json")
+                    .body(body_text);
             }
 
             let res_result = req.send().await;
@@ -85,7 +95,8 @@ impl PrivateRestClient {
     where
         T: DeserializeOwned,
     {
-        self.request_with_retry(Method::GET, path, query, None::<&()>).await
+        self.request_with_retry(Method::GET, path, query, None::<&()>)
+            .await
     }
 
     /// 署名付き POST リクエストを送信します。
@@ -94,7 +105,8 @@ impl PrivateRestClient {
         T: DeserializeOwned,
         B: Serialize,
     {
-        self.request_with_retry(Method::POST, path, None, Some(body)).await
+        self.request_with_retry(Method::POST, path, None, Some(body))
+            .await
     }
 
     /// 署名付き PUT リクエストを送信します。
@@ -103,7 +115,8 @@ impl PrivateRestClient {
         T: DeserializeOwned,
         B: Serialize,
     {
-        self.request_with_retry(Method::PUT, path, None, Some(body)).await
+        self.request_with_retry(Method::PUT, path, None, Some(body))
+            .await
     }
 
     /// 署名付き DELETE リクエストを送信します。
@@ -111,7 +124,8 @@ impl PrivateRestClient {
     where
         T: DeserializeOwned,
     {
-        self.request_with_retry(Method::DELETE, path, query, None::<&()>).await
+        self.request_with_retry(Method::DELETE, path, query, None::<&()>)
+            .await
     }
 }
 

@@ -96,7 +96,6 @@ mod tests {
         let _ = stream.flush().await;
     }
 
-
     #[tokio::test]
     async fn test_retry_on_5xx_success() {
         let (listener, url) = start_mock_server().await;
@@ -109,7 +108,12 @@ mod tests {
                 handle_connection(stream, 503, "{}").await;
             }
             if let Ok((stream, _)) = listener.accept().await {
-                handle_connection(stream, 200, r#"{"status": 0, "messages": [], "data": "success"}"#).await;
+                handle_connection(
+                    stream,
+                    200,
+                    r#"{"status": 0, "messages": [], "data": "success"}"#,
+                )
+                .await;
             }
         });
 
@@ -168,6 +172,10 @@ mod tests {
         assert!(res.is_err());
         // Since max_retries = 2, it should sleep for 10ms + 20ms = 30ms.
         // We assert that the duration is at least 25ms.
-        assert!(duration.as_millis() >= 25, "Duration was {}ms", duration.as_millis());
+        assert!(
+            duration.as_millis() >= 25,
+            "Duration was {}ms",
+            duration.as_millis()
+        );
     }
 }
