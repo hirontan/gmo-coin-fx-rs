@@ -220,11 +220,8 @@ mod tests {
             }
         });
 
-        let mut client = PublicRestClient::new(
-            None,
-            Some(tokio::time::Duration::from_millis(30)),
-            None,
-        );
+        let mut client =
+            PublicRestClient::new(None, Some(tokio::time::Duration::from_millis(30)), None);
         client.base_url = url;
 
         let start = std::time::Instant::now();
@@ -232,6 +229,10 @@ mod tests {
         let duration = start.elapsed();
 
         assert!(res.is_err());
-        assert!(duration.as_millis() < 90, "Duration was {}ms", duration.as_millis());
+        assert!(
+            duration.as_millis() < 90,
+            "Duration was {}ms",
+            duration.as_millis()
+        );
     }
 }

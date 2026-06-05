@@ -103,12 +103,7 @@ impl GmoFxClientBuilder {
             _ => None,
         };
         GmoFxClient {
-            rest: RestClient::new(
-                auth,
-                self.retry_config,
-                self.timeout,
-                self.connect_timeout,
-            ),
+            rest: RestClient::new(auth, self.retry_config, self.timeout, self.connect_timeout),
         }
     }
 }
