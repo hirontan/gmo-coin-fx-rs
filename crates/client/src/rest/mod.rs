@@ -25,10 +25,12 @@ impl RestClient {
     pub fn new(
         auth: Option<AuthSigner>,
         retry_config: Option<crate::gateway::RetryConfig>,
+        timeout: Option<std::time::Duration>,
+        connect_timeout: Option<std::time::Duration>,
     ) -> Self {
         Self {
-            public: PublicRestClient::new(retry_config),
-            private: auth.map(|a| PrivateRestClient::new(a, retry_config)),
+            public: PublicRestClient::new(retry_config, timeout, connect_timeout),
+            private: auth.map(|a| PrivateRestClient::new(a, retry_config, timeout, connect_timeout)),
         }
     }
 
