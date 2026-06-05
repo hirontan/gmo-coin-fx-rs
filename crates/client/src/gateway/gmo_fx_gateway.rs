@@ -8,6 +8,7 @@ use gmo_coin_fx_core::{
     },
     Result,
 };
+use std::time::Duration;
 
 /// GMO コイン FX API のメインクライアント。
 ///
@@ -55,6 +56,8 @@ pub struct GmoFxClientBuilder {
     api_key: Option<String>,
     secret_key: Option<String>,
     retry_config: Option<RetryConfig>,
+    timeout: Option<Duration>,
+    connect_timeout: Option<Duration>,
 }
 
 impl GmoFxClientBuilder {
@@ -75,6 +78,24 @@ impl GmoFxClientBuilder {
         self
     }
 
+    /// HTTP リクエストのタイムアウトを設定します。
+    ///
+    /// # デフォルト値
+    /// デフォルトは `None`（タイムアウトなし）です。
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// HTTP 接続のコネクションタイムアウトを設定します。
+    ///
+    /// # デフォルト値
+    /// デフォルトは `None`（接続タイムアウトなし、OS/reqwest のデフォルトに依存）です。
+    pub fn connect_timeout(mut self, connect_timeout: Duration) -> Self {
+        self.connect_timeout = Some(connect_timeout);
+        self
+    }
+
     /// [`GmoFxClient`] を構築します。
     pub fn build(self) -> GmoFxClient {
         let auth = match (self.api_key, self.secret_key) {
@@ -82,7 +103,7 @@ impl GmoFxClientBuilder {
             _ => None,
         };
         GmoFxClient {
-            rest: RestClient::new(auth, self.retry_config),
+            rest: RestClient::new(auth, self.retry_config, self.timeout, self.connect_timeout),
         }
     }
 }
@@ -94,6 +115,8 @@ impl GmoFxClient {
             api_key: None,
             secret_key: None,
             retry_config: None,
+            timeout: None,
+            connect_timeout: None,
         }
     }
 

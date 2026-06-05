@@ -13,9 +13,22 @@ pub struct PublicRestClient {
 
 impl PublicRestClient {
     /// 新しい [`PublicRestClient`] を生成します。
-    pub fn new(retry_config: Option<crate::gateway::RetryConfig>) -> Self {
+    pub fn new(
+        retry_config: Option<crate::gateway::RetryConfig>,
+        timeout: Option<std::time::Duration>,
+        connect_timeout: Option<std::time::Duration>,
+    ) -> Self {
+        let mut builder = reqwest::Client::builder();
+        if let Some(t) = timeout {
+            builder = builder.timeout(t);
+        }
+        if let Some(ct) = connect_timeout {
+            builder = builder.connect_timeout(ct);
+        }
+        let http = builder.build().expect("failed to build reqwest client");
+
         Self {
-            http: reqwest::Client::new(),
+            http,
             base_url: PUBLIC_BASE_URL.to_string(),
             retry_config,
         }
@@ -66,7 +79,7 @@ impl PublicRestClient {
 
 impl Default for PublicRestClient {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None, None)
     }
 }
 
@@ -117,11 +130,15 @@ mod tests {
             }
         });
 
-        let mut client = PublicRestClient::new(Some(RetryConfig {
-            max_retries: 3,
-            base_delay_ms: 1,
-            max_delay_ms: 10,
-        }));
+        let mut client = PublicRestClient::new(
+            Some(RetryConfig {
+                max_retries: 3,
+                base_delay_ms: 1,
+                max_delay_ms: 10,
+            }),
+            None,
+            None,
+        );
         client.base_url = url;
 
         let res: Result<String> = client.get("/test").await;
@@ -144,11 +161,15 @@ mod tests {
             }
         });
 
-        let mut client = PublicRestClient::new(Some(RetryConfig {
-            max_retries: 2,
-            base_delay_ms: 1,
-            max_delay_ms: 10,
-        }));
+        let mut client = PublicRestClient::new(
+            Some(RetryConfig {
+                max_retries: 2,
+                base_delay_ms: 1,
+                max_delay_ms: 10,
+            }),
+            None,
+            None,
+        );
         client.base_url = url;
 
         let res: Result<String> = client.get("/test").await;
@@ -157,11 +178,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_on_connection_error_exceeded() {
-        let mut client = PublicRestClient::new(Some(RetryConfig {
-            max_retries: 2,
-            base_delay_ms: 10,
-            max_delay_ms: 30,
-        }));
+        let mut client = PublicRestClient::new(
+            Some(RetryConfig {
+                max_retries: 2,
+                base_delay_ms: 10,
+                max_delay_ms: 30,
+            }),
+            None,
+            None,
+        );
         // Use a port that is not listening
         client.base_url = "http://127.0.0.1:59999".to_string();
 
@@ -174,6 +199,38 @@ mod tests {
         // We assert that the duration is at least 25ms.
         assert!(
             duration.as_millis() >= 25,
+            "Duration was {}ms",
+            duration.as_millis()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_client_timeout() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                handle_connection(
+                    stream,
+                    200,
+                    r#"{"status": 0, "messages": [], "data": "success"}"#,
+                )
+                .await;
+            }
+        });
+
+        let mut client =
+            PublicRestClient::new(None, Some(tokio::time::Duration::from_millis(30)), None);
+        client.base_url = url;
+
+        let start = std::time::Instant::now();
+        let res: Result<String> = client.get("/test").await;
+        let duration = start.elapsed();
+
+        assert!(res.is_err());
+        assert!(
+            duration.as_millis() < 90,
             "Duration was {}ms",
             duration.as_millis()
         );
