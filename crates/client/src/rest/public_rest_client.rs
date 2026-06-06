@@ -17,6 +17,7 @@ impl PublicRestClient {
         retry_config: Option<crate::gateway::RetryConfig>,
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
+        base_url: Option<String>,
     ) -> Self {
         let mut builder = reqwest::Client::builder();
         if let Some(t) = timeout {
@@ -27,9 +28,14 @@ impl PublicRestClient {
         }
         let http = builder.build().expect("failed to build reqwest client");
 
+        let resolved_base_url = match base_url {
+            Some(url) => format!("{}/public", url.trim_end_matches('/')),
+            None => PUBLIC_BASE_URL.to_string(),
+        };
+
         Self {
             http,
-            base_url: PUBLIC_BASE_URL.to_string(),
+            base_url: resolved_base_url,
             retry_config,
         }
     }
@@ -79,7 +85,7 @@ impl PublicRestClient {
 
 impl Default for PublicRestClient {
     fn default() -> Self {
-        Self::new(None, None, None)
+        Self::new(None, None, None, None)
     }
 }
 
@@ -138,6 +144,7 @@ mod tests {
             }),
             None,
             None,
+            None,
         );
         client.base_url = url;
 
@@ -169,6 +176,7 @@ mod tests {
             }),
             None,
             None,
+            None,
         );
         client.base_url = url;
 
@@ -184,6 +192,7 @@ mod tests {
                 base_delay_ms: 10,
                 max_delay_ms: 30,
             }),
+            None,
             None,
             None,
         );
@@ -220,8 +229,12 @@ mod tests {
             }
         });
 
-        let mut client =
-            PublicRestClient::new(None, Some(tokio::time::Duration::from_millis(30)), None);
+        let mut client = PublicRestClient::new(
+            None,
+            Some(tokio::time::Duration::from_millis(30)),
+            None,
+            None,
+        );
         client.base_url = url;
 
         let start = std::time::Instant::now();
@@ -234,5 +247,27 @@ mod tests {
             "Duration was {}ms",
             duration.as_millis()
         );
+    }
+
+    #[tokio::test]
+    async fn test_custom_base_url() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                handle_connection(
+                    stream,
+                    200,
+                    r#"{"status": 0, "messages": [], "data": "custom_base"}"#,
+                )
+                .await;
+            }
+        });
+
+        let client = PublicRestClient::new(None, None, None, Some(url.clone()));
+        assert_eq!(client.base_url, format!("{}/public", url));
+
+        let res: Result<String> = client.get("/test").await;
+        assert_eq!(res.unwrap(), "custom_base");
     }
 }
