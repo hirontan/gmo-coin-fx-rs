@@ -58,6 +58,7 @@ pub struct GmoFxClientBuilder {
     retry_config: Option<RetryConfig>,
     timeout: Option<Duration>,
     connect_timeout: Option<Duration>,
+    base_url: Option<String>,
 }
 
 impl GmoFxClientBuilder {
@@ -96,6 +97,12 @@ impl GmoFxClientBuilder {
         self
     }
 
+    /// サンドボックス環境やテスト用のモックサーバー向けに、ベース URL を上書き設定します。
+    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.base_url = Some(base_url.into());
+        self
+    }
+
     /// [`GmoFxClient`] を構築します。
     pub fn build(self) -> GmoFxClient {
         let auth = match (self.api_key, self.secret_key) {
@@ -103,7 +110,13 @@ impl GmoFxClientBuilder {
             _ => None,
         };
         GmoFxClient {
-            rest: RestClient::new(auth, self.retry_config, self.timeout, self.connect_timeout),
+            rest: RestClient::new(
+                auth,
+                self.retry_config,
+                self.timeout,
+                self.connect_timeout,
+                self.base_url,
+            ),
         }
     }
 }
@@ -117,6 +130,7 @@ impl GmoFxClient {
             retry_config: None,
             timeout: None,
             connect_timeout: None,
+            base_url: None,
         }
     }
 
@@ -368,5 +382,38 @@ impl GmoFxClient {
     pub async fn ws_auth_delete(&self) -> Result<()> {
         let _res: serde_json::Value = self.rest.private_delete("/v1/ws-auth", None).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_builder_default_base_urls() {
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .build();
+        assert_eq!(
+            client.rest.public.base_url,
+            "https://forex-api.coin.z.com/public"
+        );
+        assert_eq!(
+            client.rest.private.as_ref().unwrap().base_url,
+            "https://forex-api.coin.z.com/private"
+        );
+    }
+
+    #[test]
+    fn test_builder_custom_base_url() {
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url("http://localhost:8080")
+            .build();
+        assert_eq!(client.rest.public.base_url, "http://localhost:8080/public");
+        assert_eq!(
+            client.rest.private.as_ref().unwrap().base_url,
+            "http://localhost:8080/private"
+        );
     }
 }

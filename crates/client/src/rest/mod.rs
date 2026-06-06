@@ -14,8 +14,8 @@ use serde::Serialize;
 /// 上位の [`crate::gateway`] からはこの型を介して API を呼び出します。
 #[derive(Clone)]
 pub struct RestClient {
-    public: PublicRestClient,
-    private: Option<PrivateRestClient>,
+    pub(crate) public: PublicRestClient,
+    pub(crate) private: Option<PrivateRestClient>,
 }
 
 impl RestClient {
@@ -27,11 +27,13 @@ impl RestClient {
         retry_config: Option<crate::gateway::RetryConfig>,
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
+        base_url: Option<String>,
     ) -> Self {
         Self {
-            public: PublicRestClient::new(retry_config, timeout, connect_timeout),
-            private: auth
-                .map(|a| PrivateRestClient::new(a, retry_config, timeout, connect_timeout)),
+            public: PublicRestClient::new(retry_config, timeout, connect_timeout, base_url.clone()),
+            private: auth.map(|a| {
+                PrivateRestClient::new(a, retry_config, timeout, connect_timeout, base_url)
+            }),
         }
     }
 
