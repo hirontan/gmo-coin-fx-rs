@@ -22,9 +22,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bitflags"
-version = "2.12.1"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a"
+checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
 name = "block-buffer"
@@ -378,14 +378,14 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-application-risk"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "gmo-coin-fx-domain-risk",
 ]
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "hex",
  "hmac",
@@ -411,18 +411,18 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-domain-risk"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
-version = "0.3.32"
+version = "0.3.33"
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
