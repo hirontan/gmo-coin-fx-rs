@@ -4,6 +4,7 @@ pub mod execution;
 pub mod market_models;
 pub mod order_models;
 pub mod position;
+pub mod symbol;
 pub mod ws;
 pub mod ws_events;
 
@@ -13,5 +14,6 @@ pub use execution::*;
 pub use market_models::*;
 pub use order_models::*;
 pub use position::*;
+pub use symbol::*;
 pub use ws::*;
 pub use ws_events::*;
