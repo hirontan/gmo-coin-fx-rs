@@ -24,6 +24,7 @@ impl PrivateRestClient {
         retry_config: Option<crate::gateway::RetryConfig>,
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
+        base_url: Option<String>,
     ) -> Self {
         let mut builder = reqwest::Client::builder();
         if let Some(t) = timeout {
@@ -34,10 +35,15 @@ impl PrivateRestClient {
         }
         let http = builder.build().expect("failed to build reqwest client");
 
+        let resolved_base_url = match base_url {
+            Some(url) => format!("{}/private", url.trim_end_matches('/')),
+            None => PRIVATE_BASE_URL.to_string(),
+        };
+
         Self {
             http,
             auth,
-            base_url: PRIVATE_BASE_URL.to_string(),
+            base_url: resolved_base_url,
             retry_config,
         }
     }
