@@ -394,7 +394,10 @@ mod tests {
         let client = GmoFxClient::builder()
             .credentials("api_key", "secret_key")
             .build();
-        assert_eq!(client.rest.public.base_url, "https://forex-api.coin.z.com/public");
+        assert_eq!(
+            client.rest.public.base_url,
+            "https://forex-api.coin.z.com/public"
+        );
         assert_eq!(
             client.rest.private.as_ref().unwrap().base_url,
             "https://forex-api.coin.z.com/private"

@@ -31,8 +31,9 @@ impl RestClient {
     ) -> Self {
         Self {
             public: PublicRestClient::new(retry_config, timeout, connect_timeout, base_url.clone()),
-            private: auth
-                .map(|a| PrivateRestClient::new(a, retry_config, timeout, connect_timeout, base_url)),
+            private: auth.map(|a| {
+                PrivateRestClient::new(a, retry_config, timeout, connect_timeout, base_url)
+            }),
         }
     }
 
