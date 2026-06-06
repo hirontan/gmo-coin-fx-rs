@@ -106,3 +106,64 @@ impl TryFrom<String> for FxSymbol {
         Self::from_str(&value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_serialization() {
+        let sym = FxSymbol::UsdJpy;
+        let serialized = serde_json::to_string(&sym).unwrap();
+        assert_eq!(serialized, "\"USD_JPY\"");
+
+        let sym = FxSymbol::EurUsd;
+        let serialized = serde_json::to_string(&sym).unwrap();
+        assert_eq!(serialized, "\"EUR_USD\"");
+    }
+
+    #[test]
+    fn test_serde_deserialization() {
+        let serialized = "\"USD_JPY\"";
+        let deserialized: FxSymbol = serde_json::from_str(serialized).unwrap();
+        assert_eq!(deserialized, FxSymbol::UsdJpy);
+
+        let serialized = "\"EUR_USD\"";
+        let deserialized: FxSymbol = serde_json::from_str(serialized).unwrap();
+        assert_eq!(deserialized, FxSymbol::EurUsd);
+
+        let invalid = "\"INVALID_SYMBOL\"";
+        let result: Result<FxSymbol, _> = serde_json::from_str(invalid);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(FxSymbol::from_str("USD_JPY").unwrap(), FxSymbol::UsdJpy);
+        assert_eq!(FxSymbol::from_str("usdjpy").unwrap(), FxSymbol::UsdJpy);
+        assert_eq!(FxSymbol::from_str("usd_jpy").unwrap(), FxSymbol::UsdJpy);
+        assert_eq!(FxSymbol::from_str("USDJPY").unwrap(), FxSymbol::UsdJpy);
+        assert_eq!(FxSymbol::from_str("eur_usd").unwrap(), FxSymbol::EurUsd);
+        assert_eq!(FxSymbol::from_str("EURUSD").unwrap(), FxSymbol::EurUsd);
+
+        assert!(FxSymbol::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(FxSymbol::UsdJpy.to_string(), "USD_JPY");
+        assert_eq!(FxSymbol::EurUsd.to_string(), "EUR_USD");
+    }
+
+    #[test]
+    fn test_try_from() {
+        let sym: FxSymbol = "USD_JPY".try_into().unwrap();
+        assert_eq!(sym, FxSymbol::UsdJpy);
+
+        let sym: FxSymbol = "usd_jpy".to_string().try_into().unwrap();
+        assert_eq!(sym, FxSymbol::UsdJpy);
+
+        let err: Result<FxSymbol, _> = "INVALID".try_into();
+        assert!(err.is_err());
+    }
+}
