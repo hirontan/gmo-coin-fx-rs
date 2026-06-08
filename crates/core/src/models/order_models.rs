@@ -25,6 +25,99 @@ pub struct OrderRequest {
     pub upper_bound: Option<String>,
 }
 
+impl OrderRequest {
+    pub fn builder() -> OrderRequestBuilder {
+        OrderRequestBuilder::default()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct OrderRequestBuilder {
+    symbol: Option<String>,
+    side: Option<OrderSide>,
+    size: Option<String>,
+    client_order_id: Option<String>,
+    execution_type: Option<ExecutionType>,
+    limit_price: Option<String>,
+    stop_price: Option<String>,
+    lower_bound: Option<String>,
+    upper_bound: Option<String>,
+}
+
+impl OrderRequestBuilder {
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn side(mut self, side: OrderSide) -> Self {
+        self.side = Some(side);
+        self
+    }
+
+    pub fn size(mut self, size: impl Into<String>) -> Self {
+        self.size = Some(size.into());
+        self
+    }
+
+    pub fn client_order_id(mut self, client_order_id: impl Into<String>) -> Self {
+        self.client_order_id = Some(client_order_id.into());
+        self
+    }
+
+    pub fn execution_type(mut self, execution_type: ExecutionType) -> Self {
+        self.execution_type = Some(execution_type);
+        self
+    }
+
+    pub fn limit_price(mut self, limit_price: impl Into<String>) -> Self {
+        self.limit_price = Some(limit_price.into());
+        self
+    }
+
+    pub fn stop_price(mut self, stop_price: impl Into<String>) -> Self {
+        self.stop_price = Some(stop_price.into());
+        self
+    }
+
+    pub fn lower_bound(mut self, lower_bound: impl Into<String>) -> Self {
+        self.lower_bound = Some(lower_bound.into());
+        self
+    }
+
+    pub fn upper_bound(mut self, upper_bound: impl Into<String>) -> Self {
+        self.upper_bound = Some(upper_bound.into());
+        self
+    }
+
+    pub fn build(self) -> Result<OrderRequest, crate::error::GmoFxError> {
+        let symbol = self.symbol.ok_or_else(|| {
+            crate::error::GmoFxError::InvalidRequest("symbol is required".to_string())
+        })?;
+        let side = self.side.ok_or_else(|| {
+            crate::error::GmoFxError::InvalidRequest("side is required".to_string())
+        })?;
+        let size = self.size.ok_or_else(|| {
+            crate::error::GmoFxError::InvalidRequest("size is required".to_string())
+        })?;
+        let execution_type = self.execution_type.ok_or_else(|| {
+            crate::error::GmoFxError::InvalidRequest("execution_type is required".to_string())
+        })?;
+
+        Ok(OrderRequest {
+            symbol,
+            side,
+            size,
+            client_order_id: self.client_order_id,
+            execution_type,
+            limit_price: self.limit_price,
+            stop_price: self.stop_price,
+            lower_bound: self.lower_bound,
+            upper_bound: self.upper_bound,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CancelOrderRequest {
     #[serde(rename = "orderId")]
@@ -133,4 +226,82 @@ pub struct Order {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActiveOrders {
     pub list: Vec<Order>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_order_request_builder_success() {
+        let req = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .side(OrderSide::BUY)
+            .size("10000")
+            .execution_type(ExecutionType::LIMIT)
+            .limit_price("157.500")
+            .client_order_id("client_123")
+            .stop_price("156.000")
+            .lower_bound("155.000")
+            .upper_bound("160.000")
+            .build()
+            .unwrap();
+
+        assert_eq!(req.symbol, "USD_JPY");
+        assert!(matches!(req.side, OrderSide::BUY));
+        assert_eq!(req.size, "10000");
+        assert!(matches!(req.execution_type, ExecutionType::LIMIT));
+        assert_eq!(req.limit_price, Some("157.500".to_string()));
+        assert_eq!(req.client_order_id, Some("client_123".to_string()));
+        assert_eq!(req.stop_price, Some("156.000".to_string()));
+        assert_eq!(req.lower_bound, Some("155.000".to_string()));
+        assert_eq!(req.upper_bound, Some("160.000".to_string()));
+    }
+
+    #[test]
+    fn test_order_request_builder_missing_required() {
+        let result = OrderRequest::builder()
+            .side(OrderSide::BUY)
+            .size("10000")
+            .execution_type(ExecutionType::LIMIT)
+            .build();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid request: symbol is required"
+        );
+
+        let result = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .size("10000")
+            .execution_type(ExecutionType::LIMIT)
+            .build();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid request: side is required"
+        );
+
+        let result = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .side(OrderSide::BUY)
+            .execution_type(ExecutionType::LIMIT)
+            .build();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid request: size is required"
+        );
+
+        let result = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .side(OrderSide::BUY)
+            .size("10000")
+            .build();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "invalid request: execution_type is required"
+        );
+    }
 }
