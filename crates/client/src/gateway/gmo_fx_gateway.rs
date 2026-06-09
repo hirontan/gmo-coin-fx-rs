@@ -3,8 +3,8 @@ use crate::rest::RestClient;
 use gmo_coin_fx_core::{
     models::{
         AccountAsset, ActiveOrders, ApiStatus, CancelBulkOrderRequest, CancelOrderRequest,
-        CloseBulkOrderRequest, CloseOrderRequest, ExecutionsList, Kline, Order, OrderRequest,
-        PositionSummaryList, PositionsList, SpeedOrderRequest, Symbol, Ticker, WsAuth,
+        ChangeOrderRequest, CloseBulkOrderRequest, CloseOrderRequest, ExecutionsList, Kline, Order,
+        OrderRequest, PositionSummaryList, PositionsList, SpeedOrderRequest, Symbol, Ticker, WsAuth,
     },
     Result,
 };
@@ -326,6 +326,14 @@ impl GmoFxClient {
     /// 認証必要。
     pub async fn cancel_order(&self, req: &CancelOrderRequest) -> Result<()> {
         let _res: serde_json::Value = self.rest.private_post("/v1/cancelOrder", req).await?;
+        Ok(())
+    }
+
+    /// 注文を変更（価格等の変更）します。
+    ///
+    /// 認証必要。
+    pub async fn change_order(&self, req: &ChangeOrderRequest) -> Result<()> {
+        let _res: serde_json::Value = self.rest.private_post("/v1/changeOrder", req).await?;
         Ok(())
     }
 
