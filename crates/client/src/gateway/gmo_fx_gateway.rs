@@ -4,7 +4,8 @@ use gmo_coin_fx_core::{
     models::{
         AccountAsset, ActiveOrders, ApiStatus, CancelBulkOrderRequest, CancelOrderRequest,
         ChangeOrderRequest, CloseBulkOrderRequest, CloseOrderRequest, ExecutionsList, Kline, Order,
-        OrderRequest, PositionSummaryList, PositionsList, SpeedOrderRequest, Symbol, Ticker, WsAuth,
+        OrderRequest, PositionSummaryList, PositionsList, SpeedOrderRequest, Symbol, Ticker,
+        WsAuth,
     },
     Result,
 };
