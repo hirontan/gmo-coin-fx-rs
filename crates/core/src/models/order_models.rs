@@ -125,6 +125,15 @@ pub struct CancelOrderRequest {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ChangeOrderRequest {
+    #[serde(rename = "orderId")]
+    pub order_id: u64,
+    pub price: String,
+    #[serde(rename = "losscutPrice", skip_serializing_if = "Option::is_none")]
+    pub losscut_price: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct CancelBulkOrderRequest {
     pub symbol: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -303,5 +312,28 @@ mod tests {
             result.unwrap_err().to_string(),
             "invalid request: execution_type is required"
         );
+    }
+
+    #[test]
+    fn test_change_order_request_serialization() {
+        let req = ChangeOrderRequest {
+            order_id: 12345,
+            price: "150.50".to_string(),
+            losscut_price: Some("148.00".to_string()),
+        };
+        let serialized = serde_json::to_string(&req).unwrap();
+        assert!(serialized.contains(r#""orderId":12345"#));
+        assert!(serialized.contains(r#""price":"150.50""#));
+        assert!(serialized.contains(r#""losscutPrice":"148.00""#));
+
+        let req_no_losscut = ChangeOrderRequest {
+            order_id: 12345,
+            price: "150.50".to_string(),
+            losscut_price: None,
+        };
+        let serialized_no_losscut = serde_json::to_string(&req_no_losscut).unwrap();
+        assert!(serialized_no_losscut.contains(r#""orderId":12345"#));
+        assert!(serialized_no_losscut.contains(r#""price":"150.50""#));
+        assert!(!serialized_no_losscut.contains("losscutPrice"));
     }
 }
