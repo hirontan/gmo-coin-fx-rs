@@ -449,7 +449,6 @@ impl ActiveOrdersStream {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
