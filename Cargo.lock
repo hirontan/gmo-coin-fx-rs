@@ -378,14 +378,14 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-application-risk"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "gmo-coin-fx-domain-risk",
 ]
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "hex",
  "hmac",
@@ -411,18 +411,18 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-domain-risk"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
-version = "0.3.35"
+version = "0.3.36"
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
@@ -2129,18 +2129,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.50"
+version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b065d4f0e55f82fae73202e189638116a87c55ab6b8e6c2721e13dd9d854ad1"
+checksum = "ce1022995ff5ff5d841ad7d994facc23098cd40152f2c1d11cd607c6f530653f"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.50"
+version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b631b19d36a892ab55420c92dbc83ccd79274f25be714855d3074aa71cab639"
+checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
 dependencies = [
  "proc-macro2",
  "quote",
