@@ -481,4 +481,97 @@ mod tests {
             "http://localhost:8080/private"
         );
     }
+
+    async fn start_mock_server() -> (tokio::net::TcpListener, String) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("http://127.0.0.1:{}", port);
+        (listener, url)
+    }
+
+    async fn handle_connection(mut stream: tokio::net::TcpStream, status_code: u16, body: &str) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut buf = [0; 1024];
+        let _ = stream.read(&mut buf).await;
+        let response = format!(
+            "HTTP/1.1 {} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            status_code,
+            body.len(),
+            body
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+        let _ = stream.flush().await;
+    }
+
+    #[tokio::test]
+    async fn test_active_orders_stream_pagination() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            // First page request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": {
+                        "list": [
+                            {
+                                "rootOrderId": 1001,
+                                "orderId": 1001,
+                                "symbol": "USD_JPY",
+                                "side": "BUY",
+                                "orderType": "LIMIT",
+                                "executionType": "LIMIT",
+                                "settleType": "OPEN",
+                                "size": "10000",
+                                "price": "150.00",
+                                "status": "ORDERED",
+                                "timestamp": "2026-06-10T22:40:13Z"
+                            },
+                            {
+                                "rootOrderId": 1002,
+                                "orderId": 1002,
+                                "symbol": "USD_JPY",
+                                "side": "BUY",
+                                "orderType": "LIMIT",
+                                "executionType": "LIMIT",
+                                "settleType": "OPEN",
+                                "size": "10000",
+                                "price": "150.00",
+                                "status": "ORDERED",
+                                "timestamp": "2026-06-10T22:40:13Z"
+                            }
+                        ]
+                    }
+                }"#;
+                handle_connection(stream, 200, body).await;
+            }
+
+            // Second page request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{"status": 0, "data": {"list": []}}"#;
+                handle_connection(stream, 200, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let mut stream = client.active_orders_stream(Some("USD_JPY"));
+
+        // First page
+        let page1 = stream.next().await.unwrap().expect("should return page 1");
+        assert_eq!(page1.list.len(), 2);
+        assert_eq!(page1.list[0].order_id, 1001);
+        assert_eq!(page1.list[1].order_id, 1002);
+
+        // Second page
+        let page2 = stream.next().await.unwrap();
+        assert!(page2.is_none());
+
+        // Subsequent page call should keep returning None
+        let page3 = stream.next().await.unwrap();
+        assert!(page3.is_none());
+    }
 }
