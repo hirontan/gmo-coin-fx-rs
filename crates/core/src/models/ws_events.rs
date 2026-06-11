@@ -205,7 +205,6 @@ impl OrderEvent {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

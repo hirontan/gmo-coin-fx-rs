@@ -94,4 +94,3 @@ mod tests {
         assert_eq!(asset.transferable_amount_f64().unwrap(), 900000.00);
     }
 }
-

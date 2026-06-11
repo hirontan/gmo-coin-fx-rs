@@ -139,4 +139,3 @@ mod tests {
         assert_eq!(sym.tick_size_f64().unwrap(), 0.001);
     }
 }
-

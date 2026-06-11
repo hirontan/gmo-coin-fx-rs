@@ -76,7 +76,9 @@ pub struct PositionSummary {
 
 impl PositionSummary {
     pub fn average_position_rate_f64(&self) -> crate::Result<f64> {
-        self.average_position_rate.parse::<f64>().map_err(Into::into)
+        self.average_position_rate
+            .parse::<f64>()
+            .map_err(Into::into)
     }
 
     pub fn position_loss_gain_f64(&self) -> crate::Result<f64> {
@@ -88,7 +90,9 @@ impl PositionSummary {
     }
 
     pub fn sum_position_quantity_f64(&self) -> crate::Result<f64> {
-        self.sum_position_quantity.parse::<f64>().map_err(Into::into)
+        self.sum_position_quantity
+            .parse::<f64>()
+            .map_err(Into::into)
     }
 }
 
