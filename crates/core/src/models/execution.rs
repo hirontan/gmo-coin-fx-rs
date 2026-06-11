@@ -24,6 +24,24 @@ pub struct Execution {
     pub timestamp: String,
 }
 
+impl Execution {
+    pub fn size_f64(&self) -> crate::Result<f64> {
+        self.size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn price_f64(&self) -> crate::Result<f64> {
+        self.price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn loss_gain_f64(&self) -> crate::Result<f64> {
+        self.loss_gain.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn fee_f64(&self) -> crate::Result<f64> {
+        self.fee.parse::<f64>().map_err(Into::into)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExecutionsList {
     pub list: Vec<Execution>,
@@ -32,6 +50,27 @@ pub struct ExecutionsList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_execution_f64() {
+        let exec = Execution {
+            execution_id: 12345,
+            order_id: 67890,
+            symbol: "USD_JPY".to_string(),
+            side: "BUY".to_string(),
+            settle_type: "OPEN".to_string(),
+            size: "10000.5".to_string(),
+            price: "155.25".to_string(),
+            loss_gain: "1234.5".to_string(),
+            fee: "0.0".to_string(),
+            timestamp: "now".to_string(),
+        };
+
+        assert_eq!(exec.size_f64().unwrap(), 10000.5);
+        assert_eq!(exec.price_f64().unwrap(), 155.25);
+        assert_eq!(exec.loss_gain_f64().unwrap(), 1234.5);
+        assert_eq!(exec.fee_f64().unwrap(), 0.0);
+    }
 
     #[test]
     fn test_deserialize_execution() {

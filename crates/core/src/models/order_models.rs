@@ -232,6 +232,19 @@ pub struct Order {
     pub timestamp: String,
 }
 
+impl Order {
+    pub fn size_f64(&self) -> crate::Result<f64> {
+        self.size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn price_f64(&self) -> crate::Result<Option<f64>> {
+        self.price
+            .as_deref()
+            .map(|p| p.parse::<f64>().map_err(Into::into))
+            .transpose()
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActiveOrders {
     pub list: Vec<Order>,
@@ -335,5 +348,33 @@ mod tests {
         assert!(serialized_no_losscut.contains(r#""orderId":12345"#));
         assert!(serialized_no_losscut.contains(r#""price":"150.50""#));
         assert!(!serialized_no_losscut.contains("losscutPrice"));
+    }
+
+    #[test]
+    fn test_order_f64() {
+        let order = Order {
+            root_order_id: 1,
+            client_order_id: None,
+            order_id: 2,
+            symbol: "USD_JPY".to_string(),
+            side: "BUY".to_string(),
+            order_type: "LIMIT".to_string(),
+            execution_type: "LIMIT".to_string(),
+            settle_type: "OPEN".to_string(),
+            size: "10000".to_string(),
+            price: Some("155.25".to_string()),
+            status: "ORDERED".to_string(),
+            expiry: None,
+            timestamp: "now".to_string(),
+        };
+
+        assert_eq!(order.size_f64().unwrap(), 10000.0);
+        assert_eq!(order.price_f64().unwrap(), Some(155.25));
+
+        let order_no_price = Order {
+            price: None,
+            ..order
+        };
+        assert_eq!(order_no_price.price_f64().unwrap(), None);
     }
 }
