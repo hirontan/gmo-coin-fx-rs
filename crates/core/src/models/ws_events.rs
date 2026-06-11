@@ -15,6 +15,16 @@ pub struct TickerEvent {
     pub status: String,
 }
 
+impl TickerEvent {
+    pub fn ask_f64(&self) -> crate::Result<f64> {
+        self.ask.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn bid_f64(&self) -> crate::Result<f64> {
+        self.bid.parse::<f64>().map_err(Into::into)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "channel")]
 pub enum PrivateWsMessage {
@@ -70,6 +80,47 @@ pub struct ExecutionEvent {
     pub execution_timestamp: String,
 }
 
+impl ExecutionEvent {
+    pub fn amount_f64(&self) -> crate::Result<f64> {
+        self.amount.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn execution_price_f64(&self) -> crate::Result<f64> {
+        self.execution_price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn execution_size_f64(&self) -> crate::Result<f64> {
+        self.execution_size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn loss_gain_f64(&self) -> crate::Result<f64> {
+        self.loss_gain.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn settled_swap_f64(&self) -> crate::Result<Option<f64>> {
+        self.settled_swap
+            .as_deref()
+            .map(|p| p.parse::<f64>().map_err(Into::into))
+            .transpose()
+    }
+
+    pub fn fee_f64(&self) -> crate::Result<f64> {
+        self.fee.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn order_price_f64(&self) -> crate::Result<f64> {
+        self.order_price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn order_executed_size_f64(&self) -> crate::Result<f64> {
+        self.order_executed_size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn order_size_f64(&self) -> crate::Result<f64> {
+        self.order_size.parse::<f64>().map_err(Into::into)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct PositionEvent {
     #[serde(rename = "positionId")]
@@ -87,6 +138,31 @@ pub struct PositionEvent {
     pub total_swap: Option<String>,
     #[serde(rename = "msgType")]
     pub msg_type: String,
+}
+
+impl PositionEvent {
+    pub fn size_f64(&self) -> crate::Result<f64> {
+        self.size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn ordered_size_f64(&self) -> crate::Result<f64> {
+        self.ordered_size.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn price_f64(&self) -> crate::Result<f64> {
+        self.price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn loss_gain_f64(&self) -> crate::Result<f64> {
+        self.loss_gain.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn total_swap_f64(&self) -> crate::Result<Option<f64>> {
+        self.total_swap
+            .as_deref()
+            .map(|p| p.parse::<f64>().map_err(Into::into))
+            .transpose()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +194,17 @@ pub struct OrderEvent {
     #[serde(rename = "msgType")]
     pub msg_type: String,
 }
+
+impl OrderEvent {
+    pub fn order_price_f64(&self) -> crate::Result<f64> {
+        self.order_price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn order_size_f64(&self) -> crate::Result<f64> {
+        self.order_size.parse::<f64>().map_err(Into::into)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -172,5 +259,89 @@ mod tests {
             }
             _ => panic!("Expected execution event"),
         }
+    }
+
+    #[test]
+    fn test_ws_events_f64() {
+        let ticker = TickerEvent {
+            symbol: "USD_JPY".to_string(),
+            ask: "155.25".to_string(),
+            bid: "155.20".to_string(),
+            timestamp: "now".to_string(),
+            status: "OPEN".to_string(),
+        };
+        assert_eq!(ticker.ask_f64().unwrap(), 155.25);
+        assert_eq!(ticker.bid_f64().unwrap(), 155.20);
+
+        let exec = ExecutionEvent {
+            amount: "-30".to_string(),
+            root_order_id: 1,
+            order_id: 2,
+            client_order_id: None,
+            execution_id: 3,
+            symbol: "USD_JPY".to_string(),
+            settle_type: "OPEN".to_string(),
+            order_type: "NORMAL".to_string(),
+            execution_type: "LIMIT".to_string(),
+            side: "BUY".to_string(),
+            execution_price: "138.963".to_string(),
+            execution_size: "10000".to_string(),
+            position_id: 4,
+            loss_gain: "100".to_string(),
+            settled_swap: Some("10".to_string()),
+            fee: "-30".to_string(),
+            order_price: "140".to_string(),
+            order_executed_size: "10000".to_string(),
+            order_size: "10000".to_string(),
+            msg_type: "ER".to_string(),
+            order_timestamp: "now".to_string(),
+            execution_timestamp: "now".to_string(),
+        };
+        assert_eq!(exec.amount_f64().unwrap(), -30.0);
+        assert_eq!(exec.execution_price_f64().unwrap(), 138.963);
+        assert_eq!(exec.execution_size_f64().unwrap(), 10000.0);
+        assert_eq!(exec.loss_gain_f64().unwrap(), 100.0);
+        assert_eq!(exec.settled_swap_f64().unwrap(), Some(10.0));
+        assert_eq!(exec.fee_f64().unwrap(), -30.0);
+        assert_eq!(exec.order_price_f64().unwrap(), 140.0);
+        assert_eq!(exec.order_executed_size_f64().unwrap(), 10000.0);
+        assert_eq!(exec.order_size_f64().unwrap(), 10000.0);
+
+        let pos = PositionEvent {
+            position_id: 1,
+            symbol: "USD_JPY".to_string(),
+            side: "BUY".to_string(),
+            size: "10000".to_string(),
+            ordered_size: "0".to_string(),
+            price: "135.5".to_string(),
+            loss_gain: "1000".to_string(),
+            timestamp: "now".to_string(),
+            total_swap: Some("50".to_string()),
+            msg_type: "ER".to_string(),
+        };
+        assert_eq!(pos.size_f64().unwrap(), 10000.0);
+        assert_eq!(pos.ordered_size_f64().unwrap(), 0.0);
+        assert_eq!(pos.price_f64().unwrap(), 135.5);
+        assert_eq!(pos.loss_gain_f64().unwrap(), 1000.0);
+        assert_eq!(pos.total_swap_f64().unwrap(), Some(50.0));
+
+        let order = OrderEvent {
+            root_order_id: 1,
+            client_order_id: None,
+            order_id: 2,
+            symbol: "USD_JPY".to_string(),
+            settle_type: "OPEN".to_string(),
+            order_type: "NORMAL".to_string(),
+            execution_type: "LIMIT".to_string(),
+            side: "BUY".to_string(),
+            order_status: "ORDERED".to_string(),
+            order_timestamp: "now".to_string(),
+            order_price: "140".to_string(),
+            order_size: "10000".to_string(),
+            expiry: None,
+            msg_type: "ER".to_string(),
+        };
+        assert_eq!(order.order_price_f64().unwrap(), 140.0);
+        assert_eq!(order.order_size_f64().unwrap(), 10000.0);
     }
 }
