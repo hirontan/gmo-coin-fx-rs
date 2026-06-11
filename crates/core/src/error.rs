@@ -21,6 +21,9 @@ pub enum GmoFxError {
 
     #[error("invalid request: {0}")]
     InvalidRequest(String),
+
+    #[error("parse float error: {0}")]
+    ParseFloat(#[from] std::num::ParseFloatError),
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
