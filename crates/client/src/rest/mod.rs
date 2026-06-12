@@ -27,12 +27,26 @@ impl RestClient {
         retry_config: Option<crate::gateway::RetryConfig>,
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
+        pool_max_idle_per_host: Option<usize>,
         base_url: Option<String>,
     ) -> Self {
         Self {
-            public: PublicRestClient::new(retry_config, timeout, connect_timeout, base_url.clone()),
+            public: PublicRestClient::new(
+                retry_config,
+                timeout,
+                connect_timeout,
+                pool_max_idle_per_host,
+                base_url.clone(),
+            ),
             private: auth.map(|a| {
-                PrivateRestClient::new(a, retry_config, timeout, connect_timeout, base_url)
+                PrivateRestClient::new(
+                    a,
+                    retry_config,
+                    timeout,
+                    connect_timeout,
+                    pool_max_idle_per_host,
+                    base_url,
+                )
             }),
         }
     }

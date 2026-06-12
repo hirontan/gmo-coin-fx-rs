@@ -59,6 +59,7 @@ pub struct GmoFxClientBuilder {
     retry_config: Option<RetryConfig>,
     timeout: Option<Duration>,
     connect_timeout: Option<Duration>,
+    pool_max_idle_per_host: Option<usize>,
     base_url: Option<String>,
 }
 
@@ -98,6 +99,15 @@ impl GmoFxClientBuilder {
         self
     }
 
+    /// HTTP 接続プール内の各ホストごとの最大アイドル接続数を設定します。
+    ///
+    /// # デフォルト値
+    /// デフォルトは `None`（`reqwest` のデフォルト値（制限なし）が適用されます）。
+    pub fn pool_max_idle_per_host(mut self, max: usize) -> Self {
+        self.pool_max_idle_per_host = Some(max);
+        self
+    }
+
     /// サンドボックス環境やテスト用のモックサーバー向けに、ベース URL を上書き設定します。
     pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
         self.base_url = Some(base_url.into());
@@ -116,6 +126,7 @@ impl GmoFxClientBuilder {
                 self.retry_config,
                 self.timeout,
                 self.connect_timeout,
+                self.pool_max_idle_per_host,
                 self.base_url,
             ),
         }
@@ -131,6 +142,7 @@ impl GmoFxClient {
             retry_config: None,
             timeout: None,
             connect_timeout: None,
+            pool_max_idle_per_host: None,
             base_url: None,
         }
     }
@@ -572,5 +584,14 @@ mod tests {
         // Subsequent page call should keep returning None
         let page3 = stream.next().await.unwrap();
         assert!(page3.is_none());
+    }
+
+    #[test]
+    fn test_builder_pool_max_idle_per_host() {
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .pool_max_idle_per_host(10)
+            .build();
+        assert!(client.rest.private.is_some());
     }
 }
