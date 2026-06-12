@@ -585,4 +585,13 @@ mod tests {
         let page3 = stream.next().await.unwrap();
         assert!(page3.is_none());
     }
+
+    #[test]
+    fn test_builder_pool_max_idle_per_host() {
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .pool_max_idle_per_host(10)
+            .build();
+        assert!(client.rest.private.is_some());
+    }
 }
