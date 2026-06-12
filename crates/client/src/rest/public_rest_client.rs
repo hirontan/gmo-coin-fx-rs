@@ -89,7 +89,7 @@ impl PublicRestClient {
 
 impl Default for PublicRestClient {
     fn default() -> Self {
-        Self::new(None, None, None, None)
+        Self::new(None, None, None, None, None)
     }
 }
 
