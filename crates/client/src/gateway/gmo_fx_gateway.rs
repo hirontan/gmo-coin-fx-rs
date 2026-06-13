@@ -606,4 +606,25 @@ mod tests {
             .build();
         assert!(client.rest.private.is_some());
     }
+
+    #[tokio::test]
+    async fn test_active_orders_stream_with_logging() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{"status": 0, "data": {"list": []}}"#;
+                handle_connection(stream, 200, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .enable_logging(true)
+            .build();
+
+        let res = client.active_orders(Some("USD_JPY"), None, None).await;
+        assert!(res.is_ok());
+    }
 }
