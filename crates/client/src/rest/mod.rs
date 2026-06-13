@@ -28,6 +28,7 @@ impl RestClient {
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
         pool_max_idle_per_host: Option<usize>,
+        enable_logging: bool,
         base_url: Option<String>,
     ) -> Self {
         Self {
@@ -36,6 +37,7 @@ impl RestClient {
                 timeout,
                 connect_timeout,
                 pool_max_idle_per_host,
+                enable_logging,
                 base_url.clone(),
             ),
             private: auth.map(|a| {
@@ -45,6 +47,7 @@ impl RestClient {
                     timeout,
                     connect_timeout,
                     pool_max_idle_per_host,
+                    enable_logging,
                     base_url,
                 )
             }),
