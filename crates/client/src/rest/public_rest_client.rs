@@ -77,7 +77,10 @@ impl PublicRestClient {
             if self.enable_logging {
                 let status = res.status();
                 tracing::debug!("HTTP Request: GET {} -> {}", url, status);
-                let res_body_text = res.text().await.map_err(|e| GmoFxError::Http(e.to_string()))?;
+                let res_body_text = res
+                    .text()
+                    .await
+                    .map_err(|e| GmoFxError::Http(e.to_string()))?;
                 tracing::trace!("HTTP Response Body: {}", res_body_text);
 
                 let api_res: ApiResponse<T> = serde_json::from_str(&res_body_text)
