@@ -91,10 +91,8 @@ impl PrivateRestClient {
                 req = req.query(q);
             }
 
-            if self.enable_logging {
-                if !body_text.is_empty() {
-                    tracing::trace!("HTTP Request Body: {}", body_text);
-                }
+            if self.enable_logging && !body_text.is_empty() {
+                tracing::trace!("HTTP Request Body: {}", body_text);
             }
 
             if body.is_some() {
