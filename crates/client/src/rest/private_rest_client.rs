@@ -15,6 +15,7 @@ pub struct PrivateRestClient {
     pub(crate) auth: AuthSigner,
     pub(crate) base_url: String,
     pub(crate) retry_config: Option<crate::gateway::RetryConfig>,
+    pub(crate) enable_logging: bool,
 }
 
 impl PrivateRestClient {
@@ -25,6 +26,7 @@ impl PrivateRestClient {
         timeout: Option<std::time::Duration>,
         connect_timeout: Option<std::time::Duration>,
         pool_max_idle_per_host: Option<usize>,
+        enable_logging: bool,
         base_url: Option<String>,
     ) -> Self {
         let mut builder = reqwest::Client::builder();
@@ -49,6 +51,7 @@ impl PrivateRestClient {
             auth,
             base_url: resolved_base_url,
             retry_config,
+            enable_logging,
         }
     }
 
@@ -88,6 +91,12 @@ impl PrivateRestClient {
                 req = req.query(q);
             }
 
+            if self.enable_logging {
+                if !body_text.is_empty() {
+                    tracing::trace!("HTTP Request Body: {}", body_text);
+                }
+            }
+
             if body.is_some() {
                 req = req
                     .header("content-type", "application/json")
@@ -110,6 +119,24 @@ impl PrivateRestClient {
             }
 
             let res = res_result.map_err(|e| GmoFxError::Http(e.to_string()))?;
+
+            if self.enable_logging {
+                let status = res.status();
+                tracing::debug!("HTTP Request: {} {} -> {}", method, url, status);
+                let res_body_text = res.text().await.map_err(|e| GmoFxError::Http(e.to_string()))?;
+                tracing::trace!("HTTP Response Body: {}", res_body_text);
+
+                let api_res: ApiResponse<T> = serde_json::from_str(&res_body_text)
+                    .map_err(|e| GmoFxError::Json(e.to_string()))?;
+                if api_res.status != 0 {
+                    return Err(GmoFxError::Api {
+                        status: api_res.status,
+                        messages: api_res.messages,
+                    });
+                }
+                return Ok(api_res.data);
+            }
+
             return parse_response(res).await;
         }
     }
