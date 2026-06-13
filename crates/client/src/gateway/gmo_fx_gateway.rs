@@ -60,6 +60,7 @@ pub struct GmoFxClientBuilder {
     timeout: Option<Duration>,
     connect_timeout: Option<Duration>,
     pool_max_idle_per_host: Option<usize>,
+    enable_logging: bool,
     base_url: Option<String>,
 }
 
@@ -108,6 +109,15 @@ impl GmoFxClientBuilder {
         self
     }
 
+    /// HTTP リクエスト・レスポンスのロギング（`tracing`）を有効化します。
+    ///
+    /// # デフォルト値
+    /// デフォルトは `false`（無効）です。
+    pub fn enable_logging(mut self, enable: bool) -> Self {
+        self.enable_logging = enable;
+        self
+    }
+
     /// サンドボックス環境やテスト用のモックサーバー向けに、ベース URL を上書き設定します。
     pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
         self.base_url = Some(base_url.into());
@@ -127,6 +137,7 @@ impl GmoFxClientBuilder {
                 self.timeout,
                 self.connect_timeout,
                 self.pool_max_idle_per_host,
+                self.enable_logging,
                 self.base_url,
             ),
         }
@@ -143,6 +154,7 @@ impl GmoFxClient {
             timeout: None,
             connect_timeout: None,
             pool_max_idle_per_host: None,
+            enable_logging: false,
             base_url: None,
         }
     }
@@ -593,5 +605,26 @@ mod tests {
             .pool_max_idle_per_host(10)
             .build();
         assert!(client.rest.private.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_active_orders_stream_with_logging() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{"status": 0, "data": {"list": []}}"#;
+                handle_connection(stream, 200, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .enable_logging(true)
+            .build();
+
+        let res = client.active_orders(Some("USD_JPY"), None, None).await;
+        assert!(res.is_ok());
     }
 }
