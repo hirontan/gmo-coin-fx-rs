@@ -147,7 +147,9 @@ impl PrivateWsClient {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            let backoff = if self.ws_url_base.contains("127.0.0.1") || self.ws_url_base.contains("localhost") {
+            let backoff = if self.ws_url_base.contains("127.0.0.1")
+                || self.ws_url_base.contains("localhost")
+            {
                 Duration::from_millis(10)
             } else {
                 Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
@@ -243,7 +245,10 @@ mod tests {
 
                             // Send an orderEvents message after ping-pong is handled
                             let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
-                            ws_stream.send(Message::Text(event_json.into())).await.unwrap();
+                            ws_stream
+                                .send(Message::Text(event_json.into()))
+                                .await
+                                .unwrap();
                         }
                         Message::Text(_) => {}
                         Message::Close(_) => break,
@@ -260,9 +265,10 @@ mod tests {
             .build();
 
         // 4. Connect PrivateWsClient
-        let mut ws_client = PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
-            .await
-            .unwrap();
+        let mut ws_client =
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+                .await
+                .unwrap();
 
         ws_client.subscribe("orderEvents").await.unwrap();
 
@@ -290,7 +296,10 @@ mod tests {
                 if let Ok((mut stream, _)) = http_listener.accept().await {
                     let mut buf = [0; 1024];
                     let _ = stream.read(&mut buf).await;
-                    let body = format!(r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#, i);
+                    let body = format!(
+                        r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
+                        i
+                    );
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                         body.len(),
@@ -330,7 +339,10 @@ mod tests {
                     if let Message::Text(_) = msg.unwrap() {
                         // On subscription, send the orderEvents message
                         let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
-                        ws_stream.send(Message::Text(event_json.into())).await.unwrap();
+                        ws_stream
+                            .send(Message::Text(event_json.into()))
+                            .await
+                            .unwrap();
                     }
                 }
             }
@@ -343,9 +355,10 @@ mod tests {
             .build();
 
         // 4. Connect PrivateWsClient
-        let mut ws_client = PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
-            .await
-            .unwrap();
+        let mut ws_client =
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+                .await
+                .unwrap();
 
         ws_client.subscribe("orderEvents").await.unwrap();
 

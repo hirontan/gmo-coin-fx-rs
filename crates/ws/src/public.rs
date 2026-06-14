@@ -122,7 +122,8 @@ impl PublicWsClient {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            let backoff = if self.ws_url.contains("127.0.0.1") || self.ws_url.contains("localhost") {
+            let backoff = if self.ws_url.contains("127.0.0.1") || self.ws_url.contains("localhost")
+            {
                 Duration::from_millis(10)
             } else {
                 Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
@@ -186,7 +187,10 @@ mod tests {
 
                             // Send ticker event AFTER receiving the Ping
                             let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                            ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
+                            ws_stream
+                                .send(Message::Text(ticker_json.into()))
+                                .await
+                                .unwrap();
                         }
                         Message::Text(_) => {
                             // client sent subscribe command
@@ -249,7 +253,10 @@ mod tests {
                     if let Message::Text(_) = msg.unwrap() {
                         // When we get subscription on the new connection, send the ticker event to finish
                         let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                        ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
+                        ws_stream
+                            .send(Message::Text(ticker_json.into()))
+                            .await
+                            .unwrap();
                     }
                 }
             }
@@ -274,4 +281,3 @@ mod tests {
         assert_eq!(*connections.lock().await, 2);
     }
 }
-
