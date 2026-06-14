@@ -235,11 +235,8 @@ mod tests {
                 let mut ws_stream = accept_async(stream).await.unwrap();
                 // We read messages but do NOT send any Pong.
                 while let Some(msg) = ws_stream.next().await {
-                    match msg.unwrap() {
-                        Message::Ping(_) => {
-                            // Do nothing (ignore ping to trigger timeout)
-                        }
-                        _ => {}
+                    if let Message::Ping(_) = msg.unwrap() {
+                        // Do nothing (ignore ping to trigger timeout)
                     }
                 }
             }
@@ -249,13 +246,10 @@ mod tests {
                 *connections_clone.lock().await += 1;
                 let mut ws_stream = accept_async(stream).await.unwrap();
                 while let Some(msg) = ws_stream.next().await {
-                    match msg.unwrap() {
-                        Message::Text(_) => {
-                            // When we get subscription on the new connection, send the ticker event to finish
-                            let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                            ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
-                        }
-                        _ => {}
+                    if let Message::Text(_) = msg.unwrap() {
+                        // When we get subscription on the new connection, send the ticker event to finish
+                        let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                        ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
                     }
                 }
             }
