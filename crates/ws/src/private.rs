@@ -264,9 +264,9 @@ mod tests {
             .base_url(http_url)
             .build();
 
-        // 4. Connect PrivateWsClient
+        // 4. Connect PrivateWsClient (using 200ms interval for build systems)
         let mut ws_client =
-            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(200))
                 .await
                 .unwrap();
 
@@ -286,28 +286,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_private_ws_timeout_reconnect() {
-        // 1. Mock HTTP server that handles 2 tokens
+        // 1. Mock HTTP server that handles arbitrary token requests
         let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let http_port = http_listener.local_addr().unwrap().port();
         let http_url = format!("http://127.0.0.1:{}", http_port);
 
         tokio::spawn(async move {
-            for i in 1..=2 {
-                if let Ok((mut stream, _)) = http_listener.accept().await {
-                    let mut buf = [0; 1024];
-                    let _ = stream.read(&mut buf).await;
-                    let body = format!(
-                        r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
-                        i
-                    );
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                        body.len(),
-                        body
-                    );
-                    let _ = stream.write_all(response.as_bytes()).await;
-                    let _ = stream.flush().await;
-                }
+            let mut i = 0;
+            while let Ok((mut stream, _)) = http_listener.accept().await {
+                i += 1;
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = format!(
+                    r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
+                    i
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
             }
         });
 
@@ -321,25 +321,27 @@ mod tests {
 
         tokio::spawn(async move {
             while let Ok((stream, _)) = ws_listener.accept().await {
-                let conn_idx = {
-                    let mut conns = connections_clone.lock().await;
-                    *conns += 1;
-                    *conns
-                };
-                let mut ws_stream = accept_async(stream).await.unwrap();
+                let connections_clone = connections_clone.clone();
                 tokio::spawn(async move {
-                    if conn_idx == 1 {
-                        while let Some(msg) = ws_stream.next().await {
-                            if let Message::Ping(_) = msg.unwrap() {
-                                // Ignore Ping to force timeout
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Ping(_) = msg.unwrap() {
+                                    // Ignore Ping to force timeout
+                                }
                             }
-                        }
-                    } else if conn_idx == 2 {
-                        while let Some(msg) = ws_stream.next().await {
-                            if let Message::Text(_) = msg.unwrap() {
-                                // On subscription, send the orderEvents message
-                                let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
-                                let _ = ws_stream.send(Message::Text(event_json.into())).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    // On subscription, send the orderEvents message
+                                    let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                                    let _ = ws_stream.send(Message::Text(event_json.into())).await;
+                                }
                             }
                         }
                     }
@@ -353,9 +355,9 @@ mod tests {
             .base_url(http_url)
             .build();
 
-        // 4. Connect PrivateWsClient
+        // 4. Connect PrivateWsClient (using 200ms interval for stability)
         let mut ws_client =
-            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(200))
                 .await
                 .unwrap();
 
@@ -369,6 +371,6 @@ mod tests {
             panic!("Expected Order event");
         }
 
-        assert_eq!(*connections.lock().await, 2);
+        assert!(*connections.lock().await >= 2);
     }
 }

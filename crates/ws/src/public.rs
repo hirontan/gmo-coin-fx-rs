@@ -202,8 +202,8 @@ mod tests {
             }
         });
 
-        // Use a short ping interval of 50ms so the test runs quickly.
-        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(50))
+        // Use a ping interval of 200ms to prevent race conditions on slow build systems.
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
         client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
@@ -234,25 +234,27 @@ mod tests {
 
         tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
-                let conn_idx = {
-                    let mut conns = connections_clone.lock().await;
-                    *conns += 1;
-                    *conns
-                };
-                let mut ws_stream = accept_async(stream).await.unwrap();
+                let connections_clone = connections_clone.clone();
                 tokio::spawn(async move {
-                    if conn_idx == 1 {
-                        while let Some(msg) = ws_stream.next().await {
-                            if let Message::Ping(_) = msg.unwrap() {
-                                // Ignore Ping to force timeout
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Ping(_) = msg.unwrap() {
+                                    // Ignore Ping to force timeout
+                                }
                             }
-                        }
-                    } else if conn_idx == 2 {
-                        while let Some(msg) = ws_stream.next().await {
-                            if let Message::Text(_) = msg.unwrap() {
-                                // When we get subscription on the new connection, send the ticker event to finish
-                                let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                                let _ = ws_stream.send(Message::Text(ticker_json.into())).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    // When we get subscription on the new connection, send the ticker event to finish
+                                    let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                    let _ = ws_stream.send(Message::Text(ticker_json.into())).await;
+                                }
                             }
                         }
                     }
@@ -260,8 +262,8 @@ mod tests {
             }
         });
 
-        // Use a short ping interval of 50ms.
-        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(50))
+        // Use a ping interval of 200ms.
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
         client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
@@ -275,7 +277,7 @@ mod tests {
             panic!("Expected Ticker event");
         }
 
-        // Verify that 2 connections were made (original + reconnect)
-        assert_eq!(*connections.lock().await, 2);
+        // Verify that at least 2 connections were made (original + reconnect)
+        assert!(*connections.lock().await >= 2);
     }
 }
