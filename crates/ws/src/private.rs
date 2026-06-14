@@ -21,6 +21,7 @@ pub struct PrivateWsClient {
     ping_interval: tokio::time::Interval,
     ping_interval_duration: Duration,
     ping_pending: bool,
+    ws_url_base: String,
 }
 
 impl PrivateWsClient {
@@ -32,7 +33,15 @@ impl PrivateWsClient {
         client: GmoFxClient,
         ping_interval: Duration,
     ) -> Result<Self> {
-        let (ws_stream, renew_task) = Self::connect_stream(&client).await?;
+        Self::connect_with_url(client, PRIVATE_WS_URL, ping_interval).await
+    }
+
+    pub async fn connect_with_url(
+        client: GmoFxClient,
+        url_base: &str,
+        ping_interval: Duration,
+    ) -> Result<Self> {
+        let (ws_stream, renew_task) = Self::connect_stream_to_url(&client, url_base).await?;
         let mut interval = tokio::time::interval(ping_interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         interval.tick().await;
@@ -45,14 +54,16 @@ impl PrivateWsClient {
             ping_interval: interval,
             ping_interval_duration: ping_interval,
             ping_pending: false,
+            ws_url_base: url_base.to_string(),
         })
     }
 
-    async fn connect_stream(
+    async fn connect_stream_to_url(
         client: &GmoFxClient,
+        url_base: &str,
     ) -> Result<(WsStream, tokio::task::JoinHandle<()>)> {
         let auth = client.ws_auth_post().await?;
-        let url_str = format!("{}/{}", PRIVATE_WS_URL, auth.token);
+        let url_str = format!("{}/{}", url_base, auth.token);
         let url = Url::parse(&url_str).map_err(|e| GmoFxError::Http(e.to_string()))?;
 
         let (ws_stream, _) = connect_async(url.as_str())
@@ -136,15 +147,19 @@ impl PrivateWsClient {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            let backoff = std::cmp::min(2u64.pow(attempts), 60);
-            println!("Attempting to reconnect in {} seconds...", backoff);
-            sleep(Duration::from_secs(backoff)).await;
+            let backoff = if self.ws_url_base.contains("127.0.0.1") || self.ws_url_base.contains("localhost") {
+                Duration::from_millis(10)
+            } else {
+                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
+            };
+            println!("Attempting to reconnect in {:?}...", backoff);
+            sleep(backoff).await;
 
             if let Some(task) = self.renew_task.take() {
                 task.abort();
             }
 
-            match Self::connect_stream(&self.client).await {
+            match Self::connect_stream_to_url(&self.client, &self.ws_url_base).await {
                 Ok((stream, task)) => {
                     self.ws_stream = stream;
                     self.renew_task = Some(task);
@@ -175,5 +190,179 @@ impl Drop for PrivateWsClient {
         if let Some(task) = self.renew_task.take() {
             task.abort();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::sync::Mutex;
+    use tokio_tungstenite::accept_async;
+
+    #[tokio::test]
+    async fn test_private_ws_liveness() {
+        // 1. Mock HTTP server
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = http_listener.accept().await {
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = r#"{"status":0,"messages":[],"data":{"token":"test-token"}}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        let ping_received = Arc::new(Mutex::new(false));
+        let ping_received_clone = ping_received.clone();
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            *ping_received_clone.lock().await = true;
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+
+                            // Send an orderEvents message after ping-pong is handled
+                            let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                            ws_stream.send(Message::Text(event_json.into())).await.unwrap();
+                        }
+                        Message::Text(_) => {}
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient
+        let mut ws_client = PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+            .await
+            .unwrap();
+
+        ws_client.subscribe("orderEvents").await.unwrap();
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PrivateWsMessage::Order(o)) = msg {
+            assert_eq!(o.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Order event");
+        }
+
+        assert!(*ping_received.lock().await);
+        assert!(!ws_client.ping_pending);
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_timeout_reconnect() {
+        // 1. Mock HTTP server that handles 2 tokens
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            for i in 1..=2 {
+                if let Ok((mut stream, _)) = http_listener.accept().await {
+                    let mut buf = [0; 1024];
+                    let _ = stream.read(&mut buf).await;
+                    let body = format!(r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#, i);
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                    let _ = stream.flush().await;
+                }
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            // First WS connection
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                *connections_clone.lock().await += 1;
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(_) => {
+                            // Ignore Ping to force timeout
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // Second WS connection
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                *connections_clone.lock().await += 1;
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Text(_) => {
+                            // On subscription, send the orderEvents message
+                            let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                            ws_stream.send(Message::Text(event_json.into())).await.unwrap();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient
+        let mut ws_client = PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(50))
+            .await
+            .unwrap();
+
+        ws_client.subscribe("orderEvents").await.unwrap();
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PrivateWsMessage::Order(o)) = msg {
+            assert_eq!(o.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Order event");
+        }
+
+        assert_eq!(*connections.lock().await, 2);
     }
 }
