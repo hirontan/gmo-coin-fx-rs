@@ -18,6 +18,7 @@ pub struct PublicWsClient {
     ping_interval: tokio::time::Interval,
     ping_interval_duration: Duration,
     ping_pending: bool,
+    ws_url: String,
 }
 
 impl PublicWsClient {
@@ -26,7 +27,11 @@ impl PublicWsClient {
     }
 
     pub async fn connect_with_ping_interval(ping_interval: Duration) -> Result<Self> {
-        let ws_stream = Self::connect_stream().await?;
+        Self::connect_with_url(PUBLIC_WS_URL, ping_interval).await
+    }
+
+    pub async fn connect_with_url(url: &str, ping_interval: Duration) -> Result<Self> {
+        let ws_stream = Self::connect_stream_to_url(url).await?;
         let mut interval = tokio::time::interval(ping_interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         interval.tick().await;
@@ -37,11 +42,12 @@ impl PublicWsClient {
             ping_interval: interval,
             ping_interval_duration: ping_interval,
             ping_pending: false,
+            ws_url: url.to_string(),
         })
     }
 
-    async fn connect_stream() -> Result<WsStream> {
-        let url = Url::parse(PUBLIC_WS_URL).map_err(|e| GmoFxError::Http(e.to_string()))?;
+    async fn connect_stream_to_url(url_str: &str) -> Result<WsStream> {
+        let url = Url::parse(url_str).map_err(|e| GmoFxError::Http(e.to_string()))?;
         let (ws_stream, _) = connect_async(url.as_str())
             .await
             .map_err(|e| GmoFxError::Http(e.to_string()))?;
@@ -120,7 +126,7 @@ impl PublicWsClient {
             println!("Attempting to reconnect in {} seconds...", backoff);
             sleep(Duration::from_secs(backoff)).await;
 
-            match Self::connect_stream().await {
+            match Self::connect_stream_to_url(&self.ws_url).await {
                 Ok(stream) => {
                     self.ws_stream = stream;
                     self.ping_pending = false;
