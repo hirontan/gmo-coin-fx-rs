@@ -122,9 +122,13 @@ impl PublicWsClient {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            let backoff = std::cmp::min(2u64.pow(attempts), 60);
-            println!("Attempting to reconnect in {} seconds...", backoff);
-            sleep(Duration::from_secs(backoff)).await;
+            let backoff = if self.ws_url.contains("127.0.0.1") || self.ws_url.contains("localhost") {
+                Duration::from_millis(10)
+            } else {
+                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
+            };
+            println!("Attempting to reconnect in {:?}...", backoff);
+            sleep(backoff).await;
 
             match Self::connect_stream_to_url(&self.ws_url).await {
                 Ok(stream) => {
@@ -153,3 +157,127 @@ impl PublicWsClient {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::net::TcpListener;
+    use tokio::sync::Mutex;
+    use tokio_tungstenite::accept_async;
+
+    #[tokio::test]
+    async fn test_public_ws_liveness() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        let ping_received = Arc::new(Mutex::new(false));
+        let ping_received_clone = ping_received.clone();
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            *ping_received_clone.lock().await = true;
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+
+                            // Send ticker event AFTER receiving the Ping
+                            let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                            ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
+                        }
+                        Message::Text(_) => {
+                            // client sent subscribe command
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // Use a short ping interval of 50ms so the test runs quickly.
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(50))
+            .await
+            .unwrap();
+        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+
+        // next_message() should receive the ticker event after ping-pong is handled
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PublicWsMessage::Ticker(t)) = msg {
+            assert_eq!(t.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Ticker event");
+        }
+
+        // Verify that a Ping was indeed sent and processed
+        assert!(*ping_received.lock().await);
+        // And ping_pending should be false since we received the Pong
+        assert!(!client.ping_pending);
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_timeout_reconnect() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            // First connection
+            if let Ok((stream, _)) = listener.accept().await {
+                *connections_clone.lock().await += 1;
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                // We read messages but do NOT send any Pong.
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(_) => {
+                            // Do nothing (ignore ping to trigger timeout)
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // Second connection (reconnect)
+            if let Ok((stream, _)) = listener.accept().await {
+                *connections_clone.lock().await += 1;
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Text(_) => {
+                            // When we get subscription on the new connection, send the ticker event to finish
+                            let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                            ws_stream.send(Message::Text(ticker_json.into())).await.unwrap();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // Use a short ping interval of 50ms.
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(50))
+            .await
+            .unwrap();
+        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+
+        // next_message() should trigger timeout, reconnect, resubscribe, and receive the ticker event
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PublicWsMessage::Ticker(t)) = msg {
+            assert_eq!(t.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Ticker event");
+        }
+
+        // Verify that 2 connections were made (original + reconnect)
+        assert_eq!(*connections.lock().await, 2);
+    }
+}
+
