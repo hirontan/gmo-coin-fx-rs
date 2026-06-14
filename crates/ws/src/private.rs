@@ -320,31 +320,30 @@ mod tests {
         let connections_clone = connections.clone();
 
         tokio::spawn(async move {
-            // First WS connection
-            if let Ok((stream, _)) = ws_listener.accept().await {
-                *connections_clone.lock().await += 1;
+            while let Ok((stream, _)) = ws_listener.accept().await {
+                let conn_idx = {
+                    let mut conns = connections_clone.lock().await;
+                    *conns += 1;
+                    *conns
+                };
                 let mut ws_stream = accept_async(stream).await.unwrap();
-                while let Some(msg) = ws_stream.next().await {
-                    if let Message::Ping(_) = msg.unwrap() {
-                        // Ignore Ping to force timeout
+                tokio::spawn(async move {
+                    if conn_idx == 1 {
+                        while let Some(msg) = ws_stream.next().await {
+                            if let Message::Ping(_) = msg.unwrap() {
+                                // Ignore Ping to force timeout
+                            }
+                        }
+                    } else if conn_idx == 2 {
+                        while let Some(msg) = ws_stream.next().await {
+                            if let Message::Text(_) = msg.unwrap() {
+                                // On subscription, send the orderEvents message
+                                let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                                let _ = ws_stream.send(Message::Text(event_json.into())).await;
+                            }
+                        }
                     }
-                }
-            }
-
-            // Second WS connection
-            if let Ok((stream, _)) = ws_listener.accept().await {
-                *connections_clone.lock().await += 1;
-                let mut ws_stream = accept_async(stream).await.unwrap();
-                while let Some(msg) = ws_stream.next().await {
-                    if let Message::Text(_) = msg.unwrap() {
-                        // On subscription, send the orderEvents message
-                        let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
-                        ws_stream
-                            .send(Message::Text(event_json.into()))
-                            .await
-                            .unwrap();
-                    }
-                }
+                });
             }
         });
 
