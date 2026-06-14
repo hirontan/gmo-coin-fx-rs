@@ -18,17 +18,33 @@ pub struct PrivateWsClient {
     renew_task: Option<tokio::task::JoinHandle<()>>,
     client: GmoFxClient,
     subscriptions: HashSet<String>,
+    ping_interval: tokio::time::Interval,
+    ping_interval_duration: Duration,
+    ping_pending: bool,
 }
 
 impl PrivateWsClient {
     pub async fn connect(client: GmoFxClient) -> Result<Self> {
+        Self::connect_with_ping_interval(client, Duration::from_secs(30)).await
+    }
+
+    pub async fn connect_with_ping_interval(
+        client: GmoFxClient,
+        ping_interval: Duration,
+    ) -> Result<Self> {
         let (ws_stream, renew_task) = Self::connect_stream(&client).await?;
+        let mut interval = tokio::time::interval(ping_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
 
         Ok(Self {
             ws_stream,
             renew_task: Some(renew_task),
             client,
             subscriptions: HashSet::new(),
+            ping_interval: interval,
+            ping_interval_duration: ping_interval,
+            ping_pending: false,
         })
     }
 
@@ -72,23 +88,46 @@ impl PrivateWsClient {
 
     pub async fn next_message(&mut self) -> Result<Option<PrivateWsMessage>> {
         loop {
-            match self.ws_stream.next().await {
-                Some(Ok(Message::Text(text))) => {
-                    let event: PrivateWsMessage =
-                        serde_json::from_str(&text).map_err(|e| GmoFxError::Json(e.to_string()))?;
-                    return Ok(Some(event));
+            let msg_fut = self.ws_stream.next();
+            let tick_fut = self.ping_interval.tick();
+
+            tokio::select! {
+                msg = msg_fut => {
+                    match msg {
+                        Some(Ok(Message::Text(text))) => {
+                            let event: PrivateWsMessage =
+                                serde_json::from_str(&text).map_err(|e| GmoFxError::Json(e.to_string()))?;
+                            return Ok(Some(event));
+                        }
+                        Some(Ok(Message::Pong(_))) => {
+                            self.ping_pending = false;
+                        }
+                        Some(Ok(Message::Ping(data))) => {
+                            let _ = self.ws_stream.send(Message::Pong(data)).await;
+                        }
+                        Some(Ok(Message::Close(_))) | None => {
+                            self.reconnect().await?;
+                        }
+                        Some(Err(e)) => {
+                            eprintln!("WebSocket error: {:?}, attempting reconnect...", e);
+                            self.reconnect().await?;
+                        }
+                        _ => {}
+                    }
                 }
-                Some(Ok(Message::Ping(data))) => {
-                    let _ = self.ws_stream.send(Message::Pong(data)).await;
+                _ = tick_fut => {
+                    if self.ping_pending {
+                        eprintln!("Ping timeout: no pong received. Reconnecting...");
+                        self.reconnect().await?;
+                    } else {
+                        if let Err(e) = self.ws_stream.send(Message::Ping(vec![].into())).await {
+                            eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
+                            self.reconnect().await?;
+                        } else {
+                            self.ping_pending = true;
+                        }
+                    }
                 }
-                Some(Ok(Message::Close(_))) | None => {
-                    self.reconnect().await?;
-                }
-                Some(Err(e)) => {
-                    eprintln!("WebSocket error: {:?}, attempting reconnect...", e);
-                    self.reconnect().await?;
-                }
-                _ => {}
             }
         }
     }
@@ -109,6 +148,9 @@ impl PrivateWsClient {
                 Ok((stream, task)) => {
                     self.ws_stream = stream;
                     self.renew_task = Some(task);
+                    self.ping_pending = false;
+                    self.ping_interval = tokio::time::interval(self.ping_interval_duration);
+                    self.ping_interval.tick().await;
                     println!("Reconnected successfully.");
 
                     let subs = self.subscriptions.clone();
