@@ -378,14 +378,14 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-application-risk"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "gmo-coin-fx-domain-risk",
 ]
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "hex",
  "hmac",
@@ -412,18 +412,18 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-domain-risk"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
-version = "0.3.39"
+version = "0.3.40"
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
@@ -437,9 +437,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.14"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "171fefbc92fe4a4de27e0698d6a5b392d6a0e333506bc49133760b3bcf948733"
+checksum = "6cb093c84e8bd9b188d4c4a8cb6579fc016968d14c99882163cd3ff402a4f155"
 dependencies = [
  "atomic-waker",
  "bytes",
