@@ -330,11 +330,8 @@ mod tests {
                     };
                     if let Ok(mut ws_stream) = accept_async(stream).await {
                         if conn_idx == 1 {
-                            while let Some(msg) = ws_stream.next().await {
-                                if let Message::Ping(_) = msg.unwrap() {
-                                    // Ignore Ping to force timeout
-                                }
-                            }
+                            // Do not read from the stream to prevent tungstenite's automatic Pong response.
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
                         } else {
                             while let Some(msg) = ws_stream.next().await {
                                 if let Message::Text(_) = msg.unwrap() {
