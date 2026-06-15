@@ -72,12 +72,15 @@ impl PublicWsClient {
     }
 
     pub async fn next_message(&mut self) -> Result<Option<PublicWsMessage>> {
+        println!("[DEBUG] next_message called");
         loop {
+            println!("[DEBUG] next_message loop iteration: ping_pending = {}", self.ping_pending);
             let msg_fut = self.ws_stream.next();
             let tick_fut = self.ping_interval.tick();
 
             tokio::select! {
                 msg = msg_fut => {
+                    println!("[DEBUG] msg_fut completed with: {:?}", msg.as_ref().map(|r| r.as_ref().map(|_| "Ok").unwrap_or("Err")));
                     match msg {
                         Some(Ok(Message::Text(text))) => {
                             let event: PublicWsMessage =
@@ -85,12 +88,15 @@ impl PublicWsClient {
                             return Ok(Some(event));
                         }
                         Some(Ok(Message::Pong(_))) => {
+                            println!("[DEBUG] Pong received");
                             self.ping_pending = false;
                         }
                         Some(Ok(Message::Ping(data))) => {
+                            println!("[DEBUG] Ping received from server");
                             let _ = self.ws_stream.send(Message::Pong(data)).await;
                         }
                         Some(Ok(Message::Close(_))) | None => {
+                            println!("[DEBUG] Connection closed, attempting reconnect");
                             // Connection closed, attempt reconnect
                             self.reconnect().await?;
                         }
@@ -98,18 +104,23 @@ impl PublicWsClient {
                             eprintln!("WebSocket error: {:?}, attempting reconnect...", e);
                             self.reconnect().await?;
                         }
-                        _ => {} // Ignore other message types
+                        _ => {
+                            println!("[DEBUG] Other message type received");
+                        } // Ignore other message types
                     }
                 }
                 _ = tick_fut => {
+                    println!("[DEBUG] tick_fut completed: ping_pending = {}", self.ping_pending);
                     if self.ping_pending {
                         eprintln!("Ping timeout: no pong received. Reconnecting...");
                         self.reconnect().await?;
                     } else {
+                        println!("[DEBUG] Sending ping to server");
                         if let Err(e) = self.ws_stream.send(Message::Ping(vec![].into())).await {
                             eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
                             self.reconnect().await?;
                         } else {
+                            println!("[DEBUG] Ping sent successfully");
                             self.ping_pending = true;
                         }
                     }
@@ -119,6 +130,7 @@ impl PublicWsClient {
     }
 
     async fn reconnect(&mut self) -> Result<()> {
+        println!("[DEBUG] reconnect started");
         let mut attempts = 0;
         loop {
             attempts += 1;
