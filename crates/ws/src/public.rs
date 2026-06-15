@@ -74,7 +74,10 @@ impl PublicWsClient {
     pub async fn next_message(&mut self) -> Result<Option<PublicWsMessage>> {
         println!("[DEBUG] next_message called");
         loop {
-            println!("[DEBUG] next_message loop iteration: ping_pending = {}", self.ping_pending);
+            println!(
+                "[DEBUG] next_message loop iteration: ping_pending = {}",
+                self.ping_pending
+            );
             let msg_fut = self.ws_stream.next();
             let tick_fut = self.ping_interval.tick();
 
