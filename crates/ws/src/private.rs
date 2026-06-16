@@ -22,9 +22,102 @@ pub struct PrivateWsClient {
     ping_interval_duration: Duration,
     ping_pending: bool,
     ws_url_base: String,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+pub struct PrivateWsClientBuilder {
+    client: GmoFxClient,
+    url_base: String,
+    ping_interval: Duration,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+impl PrivateWsClientBuilder {
+    pub fn new(client: GmoFxClient) -> Self {
+        Self {
+            client,
+            url_base: PRIVATE_WS_URL.to_string(),
+            ping_interval: Duration::from_secs(30),
+            on_connect: None,
+            on_disconnect: None,
+        }
+    }
+
+    pub fn url_base(mut self, url_base: impl Into<String>) -> Self {
+        self.url_base = url_base.into();
+        self
+    }
+
+    pub fn ping_interval(mut self, interval: Duration) -> Self {
+        self.ping_interval = interval;
+        self
+    }
+
+    pub fn on_connect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+        self
+    }
+
+    pub fn on_disconnect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+        self
+    }
+
+    pub async fn connect(self) -> Result<PrivateWsClient> {
+        let (ws_stream, renew_task) =
+            PrivateWsClient::connect_stream_to_url(&self.client, &self.url_base).await?;
+        let mut interval = tokio::time::interval(self.ping_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
+
+        let client = PrivateWsClient {
+            ws_stream,
+            renew_task: Some(renew_task),
+            client: self.client,
+            subscriptions: HashSet::new(),
+            ping_interval: interval,
+            ping_interval_duration: self.ping_interval,
+            ping_pending: false,
+            ws_url_base: self.url_base,
+            on_connect: self.on_connect,
+            on_disconnect: self.on_disconnect,
+        };
+
+        if let Some(ref cb) = client.on_connect {
+            cb();
+        }
+
+        Ok(client)
+    }
 }
 
 impl PrivateWsClient {
+    pub fn builder(client: GmoFxClient) -> PrivateWsClientBuilder {
+        PrivateWsClientBuilder::new(client)
+    }
+
+    pub fn set_on_connect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+    }
+
+    pub fn set_on_disconnect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+    }
+
     pub async fn connect(client: GmoFxClient) -> Result<Self> {
         Self::connect_with_ping_interval(client, Duration::from_secs(30)).await
     }
@@ -55,6 +148,8 @@ impl PrivateWsClient {
             ping_interval_duration: ping_interval,
             ping_pending: false,
             ws_url_base: url_base.to_string(),
+            on_connect: None,
+            on_disconnect: None,
         })
     }
 
@@ -144,6 +239,9 @@ impl PrivateWsClient {
     }
 
     async fn reconnect(&mut self) -> Result<()> {
+        if let Some(ref cb) = self.on_disconnect {
+            cb();
+        }
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -176,6 +274,9 @@ impl PrivateWsClient {
                         if let Ok(msg) = serde_json::to_string(&cmd) {
                             let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
+                    }
+                    if let Some(ref cb) = self.on_connect {
+                        cb();
                     }
                     return Ok(());
                 }
@@ -369,5 +470,112 @@ mod tests {
         }
 
         assert!(*connections.lock().await >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_callbacks() {
+        // 1. Mock HTTP server that handles arbitrary token requests
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            let mut i = 0;
+            while let Ok((mut stream, _)) = http_listener.accept().await {
+                i += 1;
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = format!(
+                    r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
+                    i
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = ws_listener.accept().await {
+                let connections_clone = connections_clone.clone();
+                tokio::spawn(async move {
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            // Do not read from the stream to trigger ping timeout reconnect
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                                    let _ = ws_stream.send(Message::Text(event_json.into())).await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        let connect_calls = Arc::new(Mutex::new(0));
+        let disconnect_calls = Arc::new(Mutex::new(0));
+
+        let connect_calls_clone = connect_calls.clone();
+        let disconnect_calls_clone = disconnect_calls.clone();
+
+        // 4. Connect PrivateWsClient via builder
+        let mut ws_client = PrivateWsClient::builder(client)
+            .url_base(&ws_url)
+            .ping_interval(Duration::from_millis(200))
+            .on_connect(move || {
+                let connect_calls_clone = connect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *connect_calls_clone.lock().await += 1;
+                });
+            })
+            .on_disconnect(move || {
+                let disconnect_calls_clone = disconnect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *disconnect_calls_clone.lock().await += 1;
+                });
+            })
+            .connect()
+            .await
+            .unwrap();
+
+        ws_client.subscribe("orderEvents").await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 1);
+        assert_eq!(*disconnect_calls.lock().await, 0);
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 2);
+        assert_eq!(*disconnect_calls.lock().await, 1);
     }
 }

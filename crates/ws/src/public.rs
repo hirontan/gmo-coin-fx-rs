@@ -19,9 +19,103 @@ pub struct PublicWsClient {
     ping_interval_duration: Duration,
     ping_pending: bool,
     ws_url: String,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+pub struct PublicWsClientBuilder {
+    url: String,
+    ping_interval: Duration,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+impl Default for PublicWsClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PublicWsClientBuilder {
+    pub fn new() -> Self {
+        Self {
+            url: PUBLIC_WS_URL.to_string(),
+            ping_interval: Duration::from_secs(30),
+            on_connect: None,
+            on_disconnect: None,
+        }
+    }
+
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.url = url.into();
+        self
+    }
+
+    pub fn ping_interval(mut self, interval: Duration) -> Self {
+        self.ping_interval = interval;
+        self
+    }
+
+    pub fn on_connect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+        self
+    }
+
+    pub fn on_disconnect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+        self
+    }
+
+    pub async fn connect(self) -> Result<PublicWsClient> {
+        let ws_stream = PublicWsClient::connect_stream_to_url(&self.url).await?;
+        let mut interval = tokio::time::interval(self.ping_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
+
+        let client = PublicWsClient {
+            ws_stream,
+            subscriptions: HashSet::new(),
+            ping_interval: interval,
+            ping_interval_duration: self.ping_interval,
+            ping_pending: false,
+            ws_url: self.url,
+            on_connect: self.on_connect,
+            on_disconnect: self.on_disconnect,
+        };
+
+        if let Some(ref cb) = client.on_connect {
+            cb();
+        }
+
+        Ok(client)
+    }
 }
 
 impl PublicWsClient {
+    pub fn builder() -> PublicWsClientBuilder {
+        PublicWsClientBuilder::new()
+    }
+
+    pub fn set_on_connect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+    }
+
+    pub fn set_on_disconnect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+    }
+
     pub async fn connect() -> Result<Self> {
         Self::connect_with_ping_interval(Duration::from_secs(30)).await
     }
@@ -43,6 +137,8 @@ impl PublicWsClient {
             ping_interval_duration: ping_interval,
             ping_pending: false,
             ws_url: url.to_string(),
+            on_connect: None,
+            on_disconnect: None,
         })
     }
 
@@ -119,6 +215,9 @@ impl PublicWsClient {
     }
 
     async fn reconnect(&mut self) -> Result<()> {
+        if let Some(ref cb) = self.on_disconnect {
+            cb();
+        }
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -148,6 +247,9 @@ impl PublicWsClient {
                         if let Ok(msg) = serde_json::to_string(&cmd) {
                             let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
+                    }
+                    if let Some(ref cb) = self.on_connect {
+                        cb();
                     }
                     return Ok(());
                 }
@@ -276,5 +378,79 @@ mod tests {
 
         // Verify that at least 2 connections were made (original + reconnect)
         assert!(*connections.lock().await >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_callbacks() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let connections_clone = connections_clone.clone();
+                tokio::spawn(async move {
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            // Do not read from the stream to trigger ping timeout reconnect
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                    let _ = ws_stream.send(Message::Text(ticker_json.into())).await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        let connect_calls = Arc::new(Mutex::new(0));
+        let disconnect_calls = Arc::new(Mutex::new(0));
+
+        let connect_calls_clone = connect_calls.clone();
+        let disconnect_calls_clone = disconnect_calls.clone();
+
+        let client = PublicWsClient::builder()
+            .url(&url)
+            .ping_interval(Duration::from_millis(200))
+            .on_connect(move || {
+                let connect_calls_clone = connect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *connect_calls_clone.lock().await += 1;
+                });
+            })
+            .on_disconnect(move || {
+                let disconnect_calls_clone = disconnect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *disconnect_calls_clone.lock().await += 1;
+                });
+            });
+
+        // connect() should trigger the first on_connect
+        let mut client = client.connect().await.unwrap();
+        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 1);
+        assert_eq!(*disconnect_calls.lock().await, 0);
+
+        // next_message() should trigger timeout -> on_disconnect -> reconnect -> on_connect -> receive ticker
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 2);
+        assert_eq!(*disconnect_calls.lock().await, 1);
     }
 }
