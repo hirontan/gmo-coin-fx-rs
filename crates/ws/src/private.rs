@@ -470,4 +470,111 @@ mod tests {
 
         assert!(*connections.lock().await >= 2);
     }
+
+    #[tokio::test]
+    async fn test_private_ws_callbacks() {
+        // 1. Mock HTTP server that handles arbitrary token requests
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            let mut i = 0;
+            while let Ok((mut stream, _)) = http_listener.accept().await {
+                i += 1;
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = format!(
+                    r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
+                    i
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = ws_listener.accept().await {
+                let connections_clone = connections_clone.clone();
+                tokio::spawn(async move {
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            // Do not read from the stream to trigger ping timeout reconnect
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                                    let _ = ws_stream.send(Message::Text(event_json.into())).await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        let connect_calls = Arc::new(Mutex::new(0));
+        let disconnect_calls = Arc::new(Mutex::new(0));
+
+        let connect_calls_clone = connect_calls.clone();
+        let disconnect_calls_clone = disconnect_calls.clone();
+
+        // 4. Connect PrivateWsClient via builder
+        let mut ws_client = PrivateWsClient::builder(client)
+            .url_base(&ws_url)
+            .ping_interval(Duration::from_millis(200))
+            .on_connect(move || {
+                let connect_calls_clone = connect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *connect_calls_clone.lock().await += 1;
+                });
+            })
+            .on_disconnect(move || {
+                let disconnect_calls_clone = disconnect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *disconnect_calls_clone.lock().await += 1;
+                });
+            })
+            .connect()
+            .await
+            .unwrap();
+
+        ws_client.subscribe("orderEvents").await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 1);
+        assert_eq!(*disconnect_calls.lock().await, 0);
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 2);
+        assert_eq!(*disconnect_calls.lock().await, 1);
+    }
 }
