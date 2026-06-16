@@ -379,4 +379,78 @@ mod tests {
         // Verify that at least 2 connections were made (original + reconnect)
         assert!(*connections.lock().await >= 2);
     }
+
+    #[tokio::test]
+    async fn test_public_ws_callbacks() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        let connections = Arc::new(Mutex::new(0));
+        let connections_clone = connections.clone();
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let connections_clone = connections_clone.clone();
+                tokio::spawn(async move {
+                    let conn_idx = {
+                        let mut conns = connections_clone.lock().await;
+                        *conns += 1;
+                        *conns
+                    };
+                    if let Ok(mut ws_stream) = accept_async(stream).await {
+                        if conn_idx == 1 {
+                            // Do not read from the stream to trigger ping timeout reconnect
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                        } else {
+                            while let Some(msg) = ws_stream.next().await {
+                                if let Message::Text(_) = msg.unwrap() {
+                                    let ticker_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                    let _ = ws_stream.send(Message::Text(ticker_json.into())).await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        let connect_calls = Arc::new(Mutex::new(0));
+        let disconnect_calls = Arc::new(Mutex::new(0));
+
+        let connect_calls_clone = connect_calls.clone();
+        let disconnect_calls_clone = disconnect_calls.clone();
+
+        let client = PublicWsClient::builder()
+            .url(&url)
+            .ping_interval(Duration::from_millis(200))
+            .on_connect(move || {
+                let connect_calls_clone = connect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *connect_calls_clone.lock().await += 1;
+                });
+            })
+            .on_disconnect(move || {
+                let disconnect_calls_clone = disconnect_calls_clone.clone();
+                tokio::spawn(async move {
+                    *disconnect_calls_clone.lock().await += 1;
+                });
+            });
+
+        // connect() should trigger the first on_connect
+        let mut client = client.connect().await.unwrap();
+        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 1);
+        assert_eq!(*disconnect_calls.lock().await, 0);
+
+        // next_message() should trigger timeout -> on_disconnect -> reconnect -> on_connect -> receive ticker
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(*connect_calls.lock().await, 2);
+        assert_eq!(*disconnect_calls.lock().await, 1);
+    }
 }
