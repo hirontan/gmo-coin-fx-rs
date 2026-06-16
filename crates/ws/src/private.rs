@@ -22,9 +22,101 @@ pub struct PrivateWsClient {
     ping_interval_duration: Duration,
     ping_pending: bool,
     ws_url_base: String,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+pub struct PrivateWsClientBuilder {
+    client: GmoFxClient,
+    url_base: String,
+    ping_interval: Duration,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+impl PrivateWsClientBuilder {
+    pub fn new(client: GmoFxClient) -> Self {
+        Self {
+            client,
+            url_base: PRIVATE_WS_URL.to_string(),
+            ping_interval: Duration::from_secs(30),
+            on_connect: None,
+            on_disconnect: None,
+        }
+    }
+
+    pub fn url_base(mut self, url_base: impl Into<String>) -> Self {
+        self.url_base = url_base.into();
+        self
+    }
+
+    pub fn ping_interval(mut self, interval: Duration) -> Self {
+        self.ping_interval = interval;
+        self
+    }
+
+    pub fn on_connect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+        self
+    }
+
+    pub fn on_disconnect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+        self
+    }
+
+    pub async fn connect(self) -> Result<PrivateWsClient> {
+        let (ws_stream, renew_task) = PrivateWsClient::connect_stream_to_url(&self.client, &self.url_base).await?;
+        let mut interval = tokio::time::interval(self.ping_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
+
+        let client = PrivateWsClient {
+            ws_stream,
+            renew_task: Some(renew_task),
+            client: self.client,
+            subscriptions: HashSet::new(),
+            ping_interval: interval,
+            ping_interval_duration: self.ping_interval,
+            ping_pending: false,
+            ws_url_base: self.url_base,
+            on_connect: self.on_connect,
+            on_disconnect: self.on_disconnect,
+        };
+
+        if let Some(ref cb) = client.on_connect {
+            cb();
+        }
+
+        Ok(client)
+    }
 }
 
 impl PrivateWsClient {
+    pub fn builder(client: GmoFxClient) -> PrivateWsClientBuilder {
+        PrivateWsClientBuilder::new(client)
+    }
+
+    pub fn set_on_connect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+    }
+
+    pub fn set_on_disconnect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+    }
+
     pub async fn connect(client: GmoFxClient) -> Result<Self> {
         Self::connect_with_ping_interval(client, Duration::from_secs(30)).await
     }
@@ -55,6 +147,8 @@ impl PrivateWsClient {
             ping_interval_duration: ping_interval,
             ping_pending: false,
             ws_url_base: url_base.to_string(),
+            on_connect: None,
+            on_disconnect: None,
         })
     }
 
@@ -144,6 +238,9 @@ impl PrivateWsClient {
     }
 
     async fn reconnect(&mut self) -> Result<()> {
+        if let Some(ref cb) = self.on_disconnect {
+            cb();
+        }
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -176,6 +273,9 @@ impl PrivateWsClient {
                         if let Ok(msg) = serde_json::to_string(&cmd) {
                             let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
+                    }
+                    if let Some(ref cb) = self.on_connect {
+                        cb();
                     }
                     return Ok(());
                 }

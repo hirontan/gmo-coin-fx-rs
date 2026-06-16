@@ -19,9 +19,103 @@ pub struct PublicWsClient {
     ping_interval_duration: Duration,
     ping_pending: bool,
     ws_url: String,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+pub struct PublicWsClientBuilder {
+    url: String,
+    ping_interval: Duration,
+    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+}
+
+impl Default for PublicWsClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PublicWsClientBuilder {
+    pub fn new() -> Self {
+        Self {
+            url: PUBLIC_WS_URL.to_string(),
+            ping_interval: Duration::from_secs(30),
+            on_connect: None,
+            on_disconnect: None,
+        }
+    }
+
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.url = url.into();
+        self
+    }
+
+    pub fn ping_interval(mut self, interval: Duration) -> Self {
+        self.ping_interval = interval;
+        self
+    }
+
+    pub fn on_connect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+        self
+    }
+
+    pub fn on_disconnect<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+        self
+    }
+
+    pub async fn connect(self) -> Result<PublicWsClient> {
+        let ws_stream = PublicWsClient::connect_stream_to_url(&self.url).await?;
+        let mut interval = tokio::time::interval(self.ping_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        interval.tick().await;
+
+        let client = PublicWsClient {
+            ws_stream,
+            subscriptions: HashSet::new(),
+            ping_interval: interval,
+            ping_interval_duration: self.ping_interval,
+            ping_pending: false,
+            ws_url: self.url,
+            on_connect: self.on_connect,
+            on_disconnect: self.on_disconnect,
+        };
+
+        if let Some(ref cb) = client.on_connect {
+            cb();
+        }
+
+        Ok(client)
+    }
 }
 
 impl PublicWsClient {
+    pub fn builder() -> PublicWsClientBuilder {
+        PublicWsClientBuilder::new()
+    }
+
+    pub fn set_on_connect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_connect = Some(Box::new(cb));
+    }
+
+    pub fn set_on_disconnect<F>(&mut self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_disconnect = Some(Box::new(cb));
+    }
+
     pub async fn connect() -> Result<Self> {
         Self::connect_with_ping_interval(Duration::from_secs(30)).await
     }
@@ -43,6 +137,8 @@ impl PublicWsClient {
             ping_interval_duration: ping_interval,
             ping_pending: false,
             ws_url: url.to_string(),
+            on_connect: None,
+            on_disconnect: None,
         })
     }
 
@@ -119,6 +215,9 @@ impl PublicWsClient {
     }
 
     async fn reconnect(&mut self) -> Result<()> {
+        if let Some(ref cb) = self.on_disconnect {
+            cb();
+        }
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -148,6 +247,9 @@ impl PublicWsClient {
                         if let Ok(msg) = serde_json::to_string(&cmd) {
                             let _ = self.ws_stream.send(Message::Text(msg.into())).await;
                         }
+                    }
+                    if let Some(ref cb) = self.on_connect {
+                        cb();
                     }
                     return Ok(());
                 }
