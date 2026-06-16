@@ -72,7 +72,8 @@ impl PrivateWsClientBuilder {
     }
 
     pub async fn connect(self) -> Result<PrivateWsClient> {
-        let (ws_stream, renew_task) = PrivateWsClient::connect_stream_to_url(&self.client, &self.url_base).await?;
+        let (ws_stream, renew_task) =
+            PrivateWsClient::connect_stream_to_url(&self.client, &self.url_base).await?;
         let mut interval = tokio::time::interval(self.ping_interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         interval.tick().await;
