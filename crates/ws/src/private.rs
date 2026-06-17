@@ -151,10 +151,8 @@ impl Drop for PrivateWsRunner {
 impl PrivateWsRunner {
     async fn run(mut self) {
         loop {
-            if self.ws_stream.is_none() {
-                if let Err(_) = self.reconnect_and_handle_commands().await {
-                    break;
-                }
+            if self.ws_stream.is_none() && self.reconnect_and_handle_commands().await.is_err() {
+                break;
             }
 
             if let Some(ref mut stream) = self.ws_stream {
