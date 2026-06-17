@@ -10,28 +10,34 @@ use url::Url;
 
 pub const PRIVATE_WS_URL: &str = "wss://forex-api.coin.z.com/ws/private/v1";
 
+use std::sync::Arc;
+
 type WsStream =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
+#[derive(Debug)]
+enum PrivateCommand {
+    Subscribe { channel: String },
+}
+
+struct Callbacks {
+    on_connect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+}
+
 pub struct PrivateWsClient {
-    ws_stream: WsStream,
-    renew_task: Option<tokio::task::JoinHandle<()>>,
-    client: GmoFxClient,
-    subscriptions: HashSet<String>,
-    ping_interval: tokio::time::Interval,
-    ping_interval_duration: Duration,
-    ping_pending: bool,
-    ws_url_base: String,
-    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
-    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    cmd_tx: tokio::sync::mpsc::Sender<PrivateCommand>,
+    msg_rx: tokio::sync::mpsc::Receiver<Result<PrivateWsMessage>>,
+    runner_handle: tokio::task::JoinHandle<()>,
+    callbacks: Arc<std::sync::Mutex<Callbacks>>,
 }
 
 pub struct PrivateWsClientBuilder {
     client: GmoFxClient,
     url_base: String,
     ping_interval: Duration,
-    on_connect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
-    on_disconnect: Option<Box<dyn Fn() + Send + Sync + 'static>>,
+    on_connect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    on_disconnect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl PrivateWsClientBuilder {
@@ -59,7 +65,7 @@ impl PrivateWsClientBuilder {
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.on_connect = Some(Box::new(cb));
+        self.on_connect = Some(Arc::new(cb));
         self
     }
 
@@ -67,7 +73,7 @@ impl PrivateWsClientBuilder {
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.on_disconnect = Some(Box::new(cb));
+        self.on_disconnect = Some(Arc::new(cb));
         self
     }
 
@@ -78,24 +84,248 @@ impl PrivateWsClientBuilder {
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         interval.tick().await;
 
-        let client = PrivateWsClient {
-            ws_stream,
-            renew_task: Some(renew_task),
-            client: self.client,
-            subscriptions: HashSet::new(),
-            ping_interval: interval,
-            ping_interval_duration: self.ping_interval,
-            ping_pending: false,
-            ws_url_base: self.url_base,
+        let callbacks = Arc::new(std::sync::Mutex::new(Callbacks {
             on_connect: self.on_connect,
             on_disconnect: self.on_disconnect,
+        }));
+
+        let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel(100);
+        let (msg_tx, msg_rx) = tokio::sync::mpsc::channel(1000);
+
+        let runner = PrivateWsRunner {
+            ws_stream: Some(ws_stream),
+            renew_task: Some(renew_task),
+            client: self.client.clone(),
+            subscriptions: HashSet::new(),
+            cmd_rx,
+            msg_tx,
+            ping_interval_duration: self.ping_interval,
+            ping_interval: interval,
+            ping_pending: false,
+            ws_url_base: self.url_base,
+            callbacks: callbacks.clone(),
         };
 
-        if let Some(ref cb) = client.on_connect {
+        let runner_handle = tokio::spawn(runner.run());
+
+        // Invoke the first on_connect callback
+        let cb = {
+            let guard = callbacks.lock().unwrap();
+            guard.on_connect.clone()
+        };
+        if let Some(cb) = cb {
             cb();
         }
 
-        Ok(client)
+        Ok(PrivateWsClient {
+            cmd_tx,
+            msg_rx,
+            runner_handle,
+            callbacks,
+        })
+    }
+}
+
+struct PrivateWsRunner {
+    ws_stream: Option<WsStream>,
+    renew_task: Option<tokio::task::JoinHandle<()>>,
+    client: GmoFxClient,
+    subscriptions: HashSet<String>,
+    cmd_rx: tokio::sync::mpsc::Receiver<PrivateCommand>,
+    msg_tx: tokio::sync::mpsc::Sender<Result<PrivateWsMessage>>,
+    ping_interval_duration: Duration,
+    ping_interval: tokio::time::Interval,
+    ping_pending: bool,
+    ws_url_base: String,
+    callbacks: Arc<std::sync::Mutex<Callbacks>>,
+}
+
+impl Drop for PrivateWsRunner {
+    fn drop(&mut self) {
+        if let Some(task) = self.renew_task.take() {
+            task.abort();
+        }
+    }
+}
+
+impl PrivateWsRunner {
+    async fn run(mut self) {
+        loop {
+            if self.ws_stream.is_none() && self.reconnect_and_handle_commands().await.is_err() {
+                break;
+            }
+
+            if let Some(ref mut stream) = self.ws_stream {
+                let msg_fut = stream.next();
+                let tick_fut = self.ping_interval.tick();
+                let cmd_fut = self.cmd_rx.recv();
+
+                tokio::select! {
+                    msg = msg_fut => {
+                        match msg {
+                            Some(Ok(Message::Text(text))) => {
+                                match serde_json::from_str::<PrivateWsMessage>(&text) {
+                                    Ok(event) => {
+                                        if self.msg_tx.send(Ok(event)).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        if self.msg_tx.send(Err(GmoFxError::Json(e.to_string()))).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            Some(Ok(Message::Pong(_))) => {
+                                self.ping_pending = false;
+                            }
+                            Some(Ok(Message::Ping(data))) => {
+                                if let Some(ref mut stream) = self.ws_stream {
+                                    let _ = stream.send(Message::Pong(data)).await;
+                                }
+                            }
+                            Some(Ok(Message::Close(_))) | None => {
+                                self.handle_disconnect().await;
+                                self.ws_stream = None;
+                            }
+                            Some(Err(e)) => {
+                                eprintln!("WebSocket error: {:?}, attempting reconnect...", e);
+                                self.handle_disconnect().await;
+                                self.ws_stream = None;
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ = tick_fut => {
+                        if self.ping_pending {
+                            eprintln!("Ping timeout: no pong received. Reconnecting...");
+                            self.handle_disconnect().await;
+                            self.ws_stream = None;
+                        } else {
+                            if let Err(e) = stream.send(Message::Ping(vec![].into())).await {
+                                eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
+                                self.handle_disconnect().await;
+                                self.ws_stream = None;
+                            } else {
+                                self.ping_pending = true;
+                            }
+                        }
+                    }
+                    cmd = cmd_fut => {
+                        match cmd {
+                            Some(PrivateCommand::Subscribe { channel }) => {
+                                self.subscriptions.insert(channel.clone());
+                                let cmd_msg = SubscribeCommand::new(&channel);
+                                if let Ok(msg_str) = serde_json::to_string(&cmd_msg) {
+                                    if let Err(e) = stream.send(Message::Text(msg_str.into())).await {
+                                        eprintln!("Failed to send subscription: {:?}, reconnecting...", e);
+                                        self.handle_disconnect().await;
+                                        self.ws_stream = None;
+                                    }
+                                }
+                            }
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    async fn reconnect_and_handle_commands(&mut self) -> std::result::Result<(), ()> {
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let backoff = if self.ws_url_base.contains("127.0.0.1")
+                || self.ws_url_base.contains("localhost")
+            {
+                Duration::from_millis(10)
+            } else {
+                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
+            };
+            println!("Attempting to reconnect in {:?}...", backoff);
+
+            let sleep_fut = sleep(backoff);
+            tokio::pin!(sleep_fut);
+
+            loop {
+                tokio::select! {
+                    _ = &mut sleep_fut => {
+                        break;
+                    }
+                    cmd = self.cmd_rx.recv() => {
+                        match cmd {
+                            Some(PrivateCommand::Subscribe { channel }) => {
+                                self.subscriptions.insert(channel);
+                            }
+                            None => {
+                                return Err(());
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(task) = self.renew_task.take() {
+                task.abort();
+            }
+
+            match PrivateWsClient::connect_stream_to_url(&self.client, &self.ws_url_base).await {
+                Ok((stream, task)) => {
+                    self.ws_stream = Some(stream);
+                    self.renew_task = Some(task);
+                    self.ping_pending = false;
+                    self.ping_interval = tokio::time::interval(self.ping_interval_duration);
+                    self.ping_interval.tick().await;
+                    println!("Reconnected successfully.");
+
+                    let subs = self.subscriptions.clone();
+                    for channel in subs {
+                        let cmd = SubscribeCommand::new(&channel);
+                        if let Ok(msg) = serde_json::to_string(&cmd) {
+                            if let Some(ref mut stream) = self.ws_stream {
+                                if let Err(e) = stream.send(Message::Text(msg.into())).await {
+                                    eprintln!("Failed to send subscription: {:?}", e);
+                                    self.ws_stream = None;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if self.ws_stream.is_some() {
+                        self.handle_connect().await;
+                        return Ok(());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Reconnect failed: {:?}", e);
+                }
+            }
+        }
+    }
+
+    async fn handle_connect(&self) {
+        let cb = {
+            let guard = self.callbacks.lock().unwrap();
+            guard.on_connect.clone()
+        };
+        if let Some(cb) = cb {
+            cb();
+        }
+    }
+
+    async fn handle_disconnect(&self) {
+        let cb = {
+            let guard = self.callbacks.lock().unwrap();
+            guard.on_disconnect.clone()
+        };
+        if let Some(cb) = cb {
+            cb();
+        }
     }
 }
 
@@ -108,14 +338,14 @@ impl PrivateWsClient {
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.on_connect = Some(Box::new(cb));
+        self.callbacks.lock().unwrap().on_connect = Some(Arc::new(cb));
     }
 
     pub fn set_on_disconnect<F>(&mut self, cb: F)
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.on_disconnect = Some(Box::new(cb));
+        self.callbacks.lock().unwrap().on_disconnect = Some(Arc::new(cb));
     }
 
     pub async fn connect(client: GmoFxClient) -> Result<Self> {
@@ -134,23 +364,11 @@ impl PrivateWsClient {
         url_base: &str,
         ping_interval: Duration,
     ) -> Result<Self> {
-        let (ws_stream, renew_task) = Self::connect_stream_to_url(&client, url_base).await?;
-        let mut interval = tokio::time::interval(ping_interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        interval.tick().await;
-
-        Ok(Self {
-            ws_stream,
-            renew_task: Some(renew_task),
-            client,
-            subscriptions: HashSet::new(),
-            ping_interval: interval,
-            ping_interval_duration: ping_interval,
-            ping_pending: false,
-            ws_url_base: url_base.to_string(),
-            on_connect: None,
-            on_disconnect: None,
-        })
+        Self::builder(client)
+            .url_base(url_base)
+            .ping_interval(ping_interval)
+            .connect()
+            .await
     }
 
     async fn connect_stream_to_url(
@@ -180,119 +398,28 @@ impl PrivateWsClient {
     }
 
     pub async fn subscribe(&mut self, channel: &str) -> Result<()> {
-        let cmd = SubscribeCommand::new(channel);
-        let msg = serde_json::to_string(&cmd).map_err(|e| GmoFxError::Json(e.to_string()))?;
-
-        self.ws_stream
-            .send(Message::Text(msg.into()))
+        self.cmd_tx
+            .send(PrivateCommand::Subscribe {
+                channel: channel.to_string(),
+            })
             .await
-            .map_err(|e| GmoFxError::Http(e.to_string()))?;
-
-        self.subscriptions.insert(channel.to_string());
+            .map_err(|e| {
+                GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e))
+            })?;
         Ok(())
     }
 
     pub async fn next_message(&mut self) -> Result<Option<PrivateWsMessage>> {
-        loop {
-            let msg_fut = self.ws_stream.next();
-            let tick_fut = self.ping_interval.tick();
-
-            tokio::select! {
-                msg = msg_fut => {
-                    match msg {
-                        Some(Ok(Message::Text(text))) => {
-                            let event: PrivateWsMessage =
-                                serde_json::from_str(&text).map_err(|e| GmoFxError::Json(e.to_string()))?;
-                            return Ok(Some(event));
-                        }
-                        Some(Ok(Message::Pong(_))) => {
-                            self.ping_pending = false;
-                        }
-                        Some(Ok(Message::Ping(data))) => {
-                            let _ = self.ws_stream.send(Message::Pong(data)).await;
-                        }
-                        Some(Ok(Message::Close(_))) | None => {
-                            self.reconnect().await?;
-                        }
-                        Some(Err(e)) => {
-                            eprintln!("WebSocket error: {:?}, attempting reconnect...", e);
-                            self.reconnect().await?;
-                        }
-                        _ => {}
-                    }
-                }
-                _ = tick_fut => {
-                    if self.ping_pending {
-                        eprintln!("Ping timeout: no pong received. Reconnecting...");
-                        self.reconnect().await?;
-                    } else {
-                        if let Err(e) = self.ws_stream.send(Message::Ping(vec![].into())).await {
-                            eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
-                            self.reconnect().await?;
-                        } else {
-                            self.ping_pending = true;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    async fn reconnect(&mut self) -> Result<()> {
-        if let Some(ref cb) = self.on_disconnect {
-            cb();
-        }
-        let mut attempts = 0;
-        loop {
-            attempts += 1;
-            let backoff = if self.ws_url_base.contains("127.0.0.1")
-                || self.ws_url_base.contains("localhost")
-            {
-                Duration::from_millis(10)
-            } else {
-                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
-            };
-            println!("Attempting to reconnect in {:?}...", backoff);
-            sleep(backoff).await;
-
-            if let Some(task) = self.renew_task.take() {
-                task.abort();
-            }
-
-            match Self::connect_stream_to_url(&self.client, &self.ws_url_base).await {
-                Ok((stream, task)) => {
-                    self.ws_stream = stream;
-                    self.renew_task = Some(task);
-                    self.ping_pending = false;
-                    self.ping_interval = tokio::time::interval(self.ping_interval_duration);
-                    self.ping_interval.tick().await;
-                    println!("Reconnected successfully.");
-
-                    let subs = self.subscriptions.clone();
-                    for channel in subs {
-                        let cmd = SubscribeCommand::new(&channel);
-                        if let Ok(msg) = serde_json::to_string(&cmd) {
-                            let _ = self.ws_stream.send(Message::Text(msg.into())).await;
-                        }
-                    }
-                    if let Some(ref cb) = self.on_connect {
-                        cb();
-                    }
-                    return Ok(());
-                }
-                Err(e) => {
-                    eprintln!("Reconnect failed: {:?}", e);
-                }
-            }
+        match self.msg_rx.recv().await {
+            Some(res) => res.map(Some),
+            None => Ok(None),
         }
     }
 }
 
 impl Drop for PrivateWsClient {
     fn drop(&mut self) {
-        if let Some(task) = self.renew_task.take() {
-            task.abort();
-        }
+        self.runner_handle.abort();
     }
 }
 
@@ -382,7 +509,6 @@ mod tests {
         }
 
         assert!(*ping_received.lock().await);
-        assert!(!ws_client.ping_pending);
     }
 
     #[tokio::test]
@@ -577,5 +703,105 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert_eq!(*connect_calls.lock().await, 2);
         assert_eq!(*disconnect_calls.lock().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_buffering_and_queued_subscription() {
+        // 1. Mock HTTP server
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            let mut i = 0;
+            while let Ok((mut stream, _)) = http_listener.accept().await {
+                i += 1;
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = format!(
+                    r#"{{"status":0,"messages":[],"data":{{"token":"token-{}"}}}}"#,
+                    i
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        let second_conn_sub_received = Arc::new(Mutex::new(None));
+        let second_conn_sub_received_clone = second_conn_sub_received.clone();
+
+        tokio::spawn(async move {
+            // Accept first connection
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                if let Ok(mut ws_stream) = accept_async(stream).await {
+                    let event_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                    ws_stream
+                        .send(Message::Text(event_json.into()))
+                        .await
+                        .unwrap();
+
+                    ws_stream.close(None).await.unwrap();
+                }
+            }
+
+            // Accept second connection
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                if let Ok(mut ws_stream) = accept_async(stream).await {
+                    if let Some(Ok(Message::Text(txt))) = ws_stream.next().await {
+                        *second_conn_sub_received_clone.lock().await = Some(txt.to_string());
+                    }
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient
+        let mut ws_client =
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_secs(30))
+                .await
+                .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Subscribe during reconnect window
+        ws_client.subscribe("positionEvents").await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Verify buffered message
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PrivateWsMessage::Order(o)) = msg {
+            assert_eq!(o.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Order event from buffered message");
+        }
+
+        // Verify queued subscription
+        let sub_text = second_conn_sub_received.lock().await.clone();
+        assert!(
+            sub_text.is_some(),
+            "No subscription received on second connection"
+        );
+        let sub_json = sub_text.unwrap();
+        assert!(
+            sub_json.contains("positionEvents"),
+            "Subscription did not contain positionEvents"
+        );
     }
 }
