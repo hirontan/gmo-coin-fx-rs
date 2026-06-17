@@ -405,7 +405,9 @@ impl PrivateWsClient {
                 channel: channel.to_string(),
             })
             .await
-            .map_err(|e| GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e)))?;
+            .map_err(|e| {
+                GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e))
+            })?;
         Ok(())
     }
 
@@ -794,9 +796,14 @@ mod tests {
 
         // Verify queued subscription
         let sub_text = second_conn_sub_received.lock().await.clone();
-        assert!(sub_text.is_some(), "No subscription received on second connection");
+        assert!(
+            sub_text.is_some(),
+            "No subscription received on second connection"
+        );
         let sub_json = sub_text.unwrap();
-        assert!(sub_json.contains("positionEvents"), "Subscription did not contain positionEvents");
+        assert!(
+            sub_json.contains("positionEvents"),
+            "Subscription did not contain positionEvents"
+        );
     }
 }
-

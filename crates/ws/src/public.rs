@@ -374,7 +374,9 @@ impl PublicWsClient {
                 symbol: symbol.map(String::from),
             })
             .await
-            .map_err(|e| GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e)))?;
+            .map_err(|e| {
+                GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e))
+            })?;
         Ok(())
     }
 
@@ -629,7 +631,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // While client is disconnected/reconnecting, we subscribe to a new channel
-        client.subscribe("orderBook", Some("BTC_JPY")).await.unwrap();
+        client
+            .subscribe("orderBook", Some("BTC_JPY"))
+            .await
+            .unwrap();
 
         // Wait for reconnect to happen and process resubscribe
         tokio::time::sleep(Duration::from_millis(150)).await;
@@ -645,10 +650,18 @@ mod tests {
 
         // Verify the queued subscription was sent to the second connection
         let sub_text = second_conn_sub_received.lock().await.clone();
-        assert!(sub_text.is_some(), "No subscription received on second connection");
+        assert!(
+            sub_text.is_some(),
+            "No subscription received on second connection"
+        );
         let sub_json = sub_text.unwrap();
-        assert!(sub_json.contains("orderBook"), "Subscription did not contain orderBook");
-        assert!(sub_json.contains("BTC_JPY"), "Subscription did not contain BTC_JPY");
+        assert!(
+            sub_json.contains("orderBook"),
+            "Subscription did not contain orderBook"
+        );
+        assert!(
+            sub_json.contains("BTC_JPY"),
+            "Subscription did not contain BTC_JPY"
+        );
     }
 }
-
