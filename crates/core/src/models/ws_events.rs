@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[serde(untagged)]
 pub enum PublicWsMessage {
     Ticker(TickerEvent),
+    OrderBook(OrderBookEvent),
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -23,6 +24,30 @@ impl TickerEvent {
     pub fn bid_f64(&self) -> crate::Result<f64> {
         self.bid.parse::<f64>().map_err(Into::into)
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OrderBookEntry {
+    pub price: String,
+    pub size: String,
+}
+
+impl OrderBookEntry {
+    pub fn price_f64(&self) -> crate::Result<f64> {
+        self.price.parse::<f64>().map_err(Into::into)
+    }
+
+    pub fn size_f64(&self) -> crate::Result<f64> {
+        self.size.parse::<f64>().map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OrderBookEvent {
+    pub symbol: String,
+    pub asks: Vec<OrderBookEntry>,
+    pub bids: Vec<OrderBookEntry>,
+    pub timestamp: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -218,6 +243,25 @@ mod tests {
                 assert_eq!(t.symbol, "USD_JPY");
                 assert_eq!(t.ask, "157.266");
             }
+            _ => panic!("Expected Ticker event"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_public_message_orderbook() {
+        let json = r#"{"symbol":"BTC_JPY","asks":[{"price":"10000000","size":"0.5"}],"bids":[{"price":"9999000","size":"1.2"}],"timestamp":"2026-05-01T06:06:33.584446Z"}"#;
+        let msg: PublicWsMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            PublicWsMessage::OrderBook(ob) => {
+                assert_eq!(ob.symbol, "BTC_JPY");
+                assert_eq!(ob.asks[0].price, "10000000");
+                assert_eq!(ob.asks[0].price_f64().unwrap(), 10000000.0);
+                assert_eq!(ob.asks[0].size_f64().unwrap(), 0.5);
+                assert_eq!(ob.bids[0].price, "9999000");
+                assert_eq!(ob.bids[0].price_f64().unwrap(), 9999000.0);
+                assert_eq!(ob.bids[0].size_f64().unwrap(), 1.2);
+            }
+            _ => panic!("Expected OrderBook event"),
         }
     }
 
