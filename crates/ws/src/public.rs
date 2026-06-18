@@ -378,6 +378,10 @@ impl PublicWsClient {
         Ok(())
     }
 
+    pub async fn subscribe_orderbook(&mut self, symbol: &str) -> Result<()> {
+        self.subscribe("orderbooks", Some(symbol)).await
+    }
+
     pub async fn next_message(&mut self) -> Result<Option<PublicWsMessage>> {
         match self.msg_rx.recv().await {
             Some(res) => res.map(Some),
@@ -630,7 +634,7 @@ mod tests {
 
         // While client is disconnected/reconnecting, we subscribe to a new channel
         client
-            .subscribe("orderBook", Some("BTC_JPY"))
+            .subscribe_orderbook("BTC_JPY")
             .await
             .unwrap();
 
@@ -654,12 +658,61 @@ mod tests {
         );
         let sub_json = sub_text.unwrap();
         assert!(
-            sub_json.contains("orderBook"),
-            "Subscription did not contain orderBook"
+            sub_json.contains("orderbooks"),
+            "Subscription did not contain orderbooks"
         );
         assert!(
             sub_json.contains("BTC_JPY"),
             "Subscription did not contain BTC_JPY"
         );
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_orderbook_subscription() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+                        }
+                        Message::Text(txt) => {
+                            if txt.contains("subscribe") && txt.contains("orderbooks") {
+                                // Send mock OrderBook Event
+                                let ob_json = r#"{"symbol":"BTC_JPY","asks":[{"price":"10000000","size":"0.5"}],"bids":[{"price":"9999000","size":"1.2"}],"timestamp":"2026-05-01T06:06:33.584446Z"}"#;
+                                ws_stream
+                                    .send(Message::Text(ob_json.into()))
+                                    .await
+                                    .unwrap();
+                            }
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
+            .await
+            .unwrap();
+        client.subscribe_orderbook("BTC_JPY").await.unwrap();
+
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PublicWsMessage::OrderBook(ob)) = msg {
+            assert_eq!(ob.symbol, "BTC_JPY");
+            assert_eq!(ob.asks[0].price_f64().unwrap(), 10000000.0);
+            assert_eq!(ob.asks[0].size_f64().unwrap(), 0.5);
+            assert_eq!(ob.bids[0].price_f64().unwrap(), 9999000.0);
+            assert_eq!(ob.bids[0].size_f64().unwrap(), 1.2);
+        } else {
+            panic!("Expected OrderBook event");
+        }
     }
 }
