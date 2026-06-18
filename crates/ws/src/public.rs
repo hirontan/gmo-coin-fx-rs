@@ -633,10 +633,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // While client is disconnected/reconnecting, we subscribe to a new channel
-        client
-            .subscribe_orderbook("BTC_JPY")
-            .await
-            .unwrap();
+        client.subscribe_orderbook("BTC_JPY").await.unwrap();
 
         // Wait for reconnect to happen and process resubscribe
         tokio::time::sleep(Duration::from_millis(150)).await;
@@ -685,10 +682,7 @@ mod tests {
                             if txt.contains("subscribe") && txt.contains("orderbooks") {
                                 // Send mock OrderBook Event
                                 let ob_json = r#"{"symbol":"BTC_JPY","asks":[{"price":"10000000","size":"0.5"}],"bids":[{"price":"9999000","size":"1.2"}],"timestamp":"2026-05-01T06:06:33.584446Z"}"#;
-                                ws_stream
-                                    .send(Message::Text(ob_json.into()))
-                                    .await
-                                    .unwrap();
+                                ws_stream.send(Message::Text(ob_json.into())).await.unwrap();
                             }
                         }
                         Message::Close(_) => break,
