@@ -11,6 +11,8 @@
 
 pub mod private;
 pub mod public;
+pub mod reconnect;
 
 pub use private::PrivateWsClient;
 pub use public::PublicWsClient;
+pub use reconnect::ReconnectConfig;
