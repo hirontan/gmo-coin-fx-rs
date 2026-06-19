@@ -10,6 +10,7 @@ use url::Url;
 
 pub const PRIVATE_WS_URL: &str = "wss://forex-api.coin.z.com/ws/private/v1";
 
+use crate::reconnect::ReconnectConfig;
 use std::sync::Arc;
 
 type WsStream =
@@ -38,6 +39,7 @@ pub struct PrivateWsClientBuilder {
     ping_interval: Duration,
     on_connect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     on_disconnect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    reconnect_config: ReconnectConfig,
 }
 
 impl PrivateWsClientBuilder {
@@ -48,6 +50,7 @@ impl PrivateWsClientBuilder {
             ping_interval: Duration::from_secs(30),
             on_connect: None,
             on_disconnect: None,
+            reconnect_config: ReconnectConfig::default(),
         }
     }
 
@@ -74,6 +77,11 @@ impl PrivateWsClientBuilder {
         F: Fn() + Send + Sync + 'static,
     {
         self.on_disconnect = Some(Arc::new(cb));
+        self
+    }
+
+    pub fn reconnect_config(mut self, config: ReconnectConfig) -> Self {
+        self.reconnect_config = config;
         self
     }
 
@@ -104,6 +112,7 @@ impl PrivateWsClientBuilder {
             ping_pending: false,
             ws_url_base: self.url_base,
             callbacks: callbacks.clone(),
+            reconnect_config: self.reconnect_config,
         };
 
         let runner_handle = tokio::spawn(runner.run());
@@ -138,6 +147,7 @@ struct PrivateWsRunner {
     ping_pending: bool,
     ws_url_base: String,
     callbacks: Arc<std::sync::Mutex<Callbacks>>,
+    reconnect_config: ReconnectConfig,
 }
 
 impl Drop for PrivateWsRunner {
@@ -239,12 +249,18 @@ impl PrivateWsRunner {
         let mut attempts = 0;
         loop {
             attempts += 1;
+            if let Some(max) = self.reconnect_config.max_retries {
+                if attempts > max {
+                    eprintln!("Reconnect failed: exceeded max retries of {}", max);
+                    return Err(());
+                }
+            }
             let backoff = if self.ws_url_base.contains("127.0.0.1")
                 || self.ws_url_base.contains("localhost")
             {
                 Duration::from_millis(10)
             } else {
-                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
+                self.reconnect_config.calculate_delay(attempts)
             };
             println!("Attempting to reconnect in {:?}...", backoff);
 
@@ -803,5 +819,61 @@ mod tests {
             sub_json.contains("positionEvents"),
             "Subscription did not contain positionEvents"
         );
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_max_retries() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // 1. Mock HTTP server
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = http_listener.accept().await {
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = r#"{"status":0,"messages":[],"data":{"token":"test-token"}}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                if let Ok(mut ws_stream) = accept_async(stream).await {
+                    let _ = ws_stream.close(None).await;
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient with max_retries(Some(2))
+        let mut ws_client = PrivateWsClient::builder(client)
+            .url_base(&ws_url)
+            .ping_interval(Duration::from_millis(200))
+            .reconnect_config(ReconnectConfig::new().max_retries(Some(2)))
+            .connect()
+            .await
+            .unwrap();
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_none());
     }
 }
