@@ -7,6 +7,7 @@ use tokio::time::{sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
+use crate::reconnect::ReconnectConfig;
 use std::sync::Arc;
 
 pub const PUBLIC_WS_URL: &str = "wss://forex-api.coin.z.com/ws/public/v1";
@@ -39,6 +40,7 @@ pub struct PublicWsClientBuilder {
     ping_interval: Duration,
     on_connect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
     on_disconnect: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
+    reconnect_config: ReconnectConfig,
 }
 
 impl Default for PublicWsClientBuilder {
@@ -54,6 +56,7 @@ impl PublicWsClientBuilder {
             ping_interval: Duration::from_secs(30),
             on_connect: None,
             on_disconnect: None,
+            reconnect_config: ReconnectConfig::default(),
         }
     }
 
@@ -83,6 +86,11 @@ impl PublicWsClientBuilder {
         self
     }
 
+    pub fn reconnect_config(mut self, config: ReconnectConfig) -> Self {
+        self.reconnect_config = config;
+        self
+    }
+
     pub async fn connect(self) -> Result<PublicWsClient> {
         let ws_stream = PublicWsClient::connect_stream_to_url(&self.url).await?;
         let mut interval = tokio::time::interval(self.ping_interval);
@@ -107,6 +115,7 @@ impl PublicWsClientBuilder {
             ping_interval: interval,
             ping_pending: false,
             callbacks: callbacks.clone(),
+            reconnect_config: self.reconnect_config,
         };
 
         let runner_handle = tokio::spawn(runner.run());
@@ -139,6 +148,7 @@ struct PublicWsRunner {
     ping_interval: tokio::time::Interval,
     ping_pending: bool,
     callbacks: Arc<std::sync::Mutex<Callbacks>>,
+    reconnect_config: ReconnectConfig,
 }
 
 impl PublicWsRunner {
@@ -235,11 +245,17 @@ impl PublicWsRunner {
         let mut attempts = 0;
         loop {
             attempts += 1;
+            if let Some(max) = self.reconnect_config.max_retries {
+                if attempts > max {
+                    eprintln!("Reconnect failed: exceeded max retries of {}", max);
+                    return Err(());
+                }
+            }
             let backoff = if self.ws_url.contains("127.0.0.1") || self.ws_url.contains("localhost")
             {
                 Duration::from_millis(10)
             } else {
-                Duration::from_secs(std::cmp::min(2u64.pow(attempts), 60))
+                self.reconnect_config.calculate_delay(attempts)
             };
             println!("Attempting to reconnect in {:?}...", backoff);
 
@@ -708,5 +724,31 @@ mod tests {
         } else {
             panic!("Expected OrderBook event");
         }
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_max_retries() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                if let Ok(mut ws_stream) = accept_async(stream).await {
+                    let _ = ws_stream.close(None).await;
+                }
+            }
+        });
+
+        let mut client = PublicWsClient::builder()
+            .url(&url)
+            .ping_interval(Duration::from_millis(200))
+            .reconnect_config(ReconnectConfig::new().max_retries(Some(2)))
+            .connect()
+            .await
+            .unwrap();
+
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_none());
     }
 }
