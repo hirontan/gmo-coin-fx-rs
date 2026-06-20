@@ -3,7 +3,6 @@ use gmo_coin_fx_client::GmoFxClient;
 use gmo_coin_fx_core::{
     models::ws::{Channel, SubscribeCommand, Subscription},
     models::ws_events::PrivateWsMessage,
-    models::FxSymbol,
     GmoFxError, Result,
 };
 use std::collections::HashSet;
@@ -509,6 +508,7 @@ impl Drop for PrivateWsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gmo_coin_fx_core::models::FxSymbol;
     use std::sync::Arc;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
