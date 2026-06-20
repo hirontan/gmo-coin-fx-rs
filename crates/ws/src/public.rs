@@ -21,6 +21,10 @@ enum PublicCommand {
         channel: String,
         symbol: Option<String>,
     },
+    SubscribeFiltered {
+        channel: String,
+        symbol: String,
+    },
 }
 
 struct Callbacks {
@@ -109,6 +113,7 @@ impl PublicWsClientBuilder {
             ws_stream: Some(ws_stream),
             ws_url: self.url,
             subscriptions: HashSet::new(),
+            filters: std::collections::HashMap::new(),
             cmd_rx,
             msg_tx,
             ping_interval_duration: self.ping_interval,
@@ -142,6 +147,7 @@ struct PublicWsRunner {
     ws_stream: Option<WsStream>,
     ws_url: String,
     subscriptions: HashSet<(String, Option<String>)>,
+    filters: std::collections::HashMap<String, HashSet<String>>,
     cmd_rx: tokio::sync::mpsc::Receiver<PublicCommand>,
     msg_tx: tokio::sync::mpsc::Sender<Result<PublicWsMessage>>,
     ping_interval_duration: Duration,
@@ -169,8 +175,17 @@ impl PublicWsRunner {
                             Some(Ok(Message::Text(text))) => {
                                 match serde_json::from_str::<PublicWsMessage>(&text) {
                                     Ok(event) => {
-                                        if self.msg_tx.send(Ok(event)).await.is_err() {
-                                            break;
+                                        let channel = event.channel();
+                                        let symbol = event.symbol();
+                                        let allowed = if let Some(allowed_symbols) = self.filters.get(channel) {
+                                            allowed_symbols.contains(symbol)
+                                        } else {
+                                            true
+                                        };
+                                        if allowed {
+                                            if self.msg_tx.send(Ok(event)).await.is_err() {
+                                                break;
+                                            }
                                         }
                                     }
                                     Err(e) => {
@@ -218,11 +233,24 @@ impl PublicWsRunner {
                     cmd = cmd_fut => {
                         match cmd {
                             Some(PublicCommand::Subscribe { channel, symbol }) => {
+                                self.filters.remove(&channel);
                                 self.subscriptions.insert((channel.clone(), symbol.clone()));
                                 let mut cmd_msg = SubscribeCommand::new(&channel);
                                 if let Some(sym) = &symbol {
                                     cmd_msg = cmd_msg.symbol(sym);
                                 }
+                                if let Ok(msg_str) = serde_json::to_string(&cmd_msg) {
+                                    if let Err(e) = stream.send(Message::Text(msg_str.into())).await {
+                                        eprintln!("Failed to send subscription command: {:?}, reconnecting...", e);
+                                        self.handle_disconnect().await;
+                                        self.ws_stream = None;
+                                    }
+                                }
+                            }
+                            Some(PublicCommand::SubscribeFiltered { channel, symbol }) => {
+                                self.filters.entry(channel.clone()).or_default().insert(symbol.clone());
+                                self.subscriptions.insert((channel.clone(), Some(symbol.clone())));
+                                let cmd_msg = SubscribeCommand::new(&channel).symbol(&symbol);
                                 if let Ok(msg_str) = serde_json::to_string(&cmd_msg) {
                                     if let Err(e) = stream.send(Message::Text(msg_str.into())).await {
                                         eprintln!("Failed to send subscription command: {:?}, reconnecting...", e);
@@ -270,7 +298,12 @@ impl PublicWsRunner {
                     cmd = self.cmd_rx.recv() => {
                         match cmd {
                             Some(PublicCommand::Subscribe { channel, symbol }) => {
+                                self.filters.remove(&channel);
                                 self.subscriptions.insert((channel, symbol));
+                            }
+                            Some(PublicCommand::SubscribeFiltered { channel, symbol }) => {
+                                self.filters.entry(channel.clone()).or_default().insert(symbol.clone());
+                                self.subscriptions.insert((channel, Some(symbol)));
                             }
                             None => {
                                 return Err(());
@@ -390,6 +423,19 @@ impl PublicWsClient {
             .await
             .map_err(|e| {
                 GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e))
+            })?;
+        Ok(())
+    }
+
+    pub async fn subscribe_filtered(&mut self, channel: &str, symbol: &str) -> Result<()> {
+        self.cmd_tx
+            .send(PublicCommand::SubscribeFiltered {
+                channel: channel.to_string(),
+                symbol: symbol.to_string(),
+            })
+            .await
+            .map_err(|e| {
+                GmoFxError::Http(format!("Failed to send subscribe_filtered command to runner: {}", e))
             })?;
         Ok(())
     }
@@ -750,5 +796,100 @@ mod tests {
 
         let msg = client.next_message().await.unwrap();
         assert!(msg.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_symbol_filtering() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+                        }
+                        Message::Text(txt) => {
+                            if txt.contains("subscribe") && txt.contains("ticker") {
+                                // Send EUR_JPY ticker (should be filtered out)
+                                let eur_json = r#"{"symbol":"EUR_JPY","ask":"167.266","bid":"167.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                ws_stream.send(Message::Text(eur_json.into())).await.unwrap();
+
+                                // Send USD_JPY ticker (should be delivered)
+                                let usd_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                ws_stream.send(Message::Text(usd_json.into())).await.unwrap();
+                            }
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
+            .await
+            .unwrap();
+        client.subscribe_filtered("ticker", "USD_JPY").await.unwrap();
+
+        // next_message() should skip EUR_JPY and receive USD_JPY directly
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PublicWsMessage::Ticker(t)) = msg {
+            assert_eq!(t.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Ticker event");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_public_ws_symbol_filtering_cleared_by_subscribe() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url = format!("ws://127.0.0.1:{}", port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+                        }
+                        Message::Text(txt) => {
+                            if txt.contains("subscribe") && txt.contains("ticker") {
+                                // Send EUR_JPY ticker
+                                let eur_json = r#"{"symbol":"EUR_JPY","ask":"167.266","bid":"167.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
+                                ws_stream.send(Message::Text(eur_json.into())).await.unwrap();
+                            }
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
+            .await
+            .unwrap();
+        // Subscribe filtered first
+        client.subscribe_filtered("ticker", "USD_JPY").await.unwrap();
+        // Normal subscribe to the same channel clears the filter
+        client.subscribe("ticker", Some("EUR_JPY")).await.unwrap();
+
+        // Wait a short bit for commands to be processed in the runner
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let msg = client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PublicWsMessage::Ticker(t)) = msg {
+            assert_eq!(t.symbol, "EUR_JPY");
+        } else {
+            panic!("Expected Ticker event");
+        }
     }
 }
