@@ -7,6 +7,22 @@ pub enum PublicWsMessage {
     OrderBook(OrderBookEvent),
 }
 
+impl PublicWsMessage {
+    pub fn channel(&self) -> &str {
+        match self {
+            PublicWsMessage::Ticker(_) => "ticker",
+            PublicWsMessage::OrderBook(_) => "orderbooks",
+        }
+    }
+
+    pub fn symbol(&self) -> &str {
+        match self {
+            PublicWsMessage::Ticker(t) => &t.symbol,
+            PublicWsMessage::OrderBook(ob) => &ob.symbol,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TickerEvent {
     pub symbol: String,
@@ -59,6 +75,24 @@ pub enum PrivateWsMessage {
     Position(PositionEvent),
     #[serde(rename = "orderEvents")]
     Order(OrderEvent),
+}
+
+impl PrivateWsMessage {
+    pub fn channel(&self) -> &str {
+        match self {
+            PrivateWsMessage::Execution(_) => "executionEvents",
+            PrivateWsMessage::Position(_) => "positionEvents",
+            PrivateWsMessage::Order(_) => "orderEvents",
+        }
+    }
+
+    pub fn symbol(&self) -> &str {
+        match self {
+            PrivateWsMessage::Execution(e) => &e.symbol,
+            PrivateWsMessage::Position(p) => &p.symbol,
+            PrivateWsMessage::Order(o) => &o.symbol,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
