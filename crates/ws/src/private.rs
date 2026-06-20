@@ -19,6 +19,7 @@ type WsStream =
 #[derive(Debug)]
 enum PrivateCommand {
     Subscribe { channel: String },
+    SubscribeFiltered { channel: String, symbol: String },
 }
 
 struct Callbacks {
@@ -105,6 +106,7 @@ impl PrivateWsClientBuilder {
             renew_task: Some(renew_task),
             client: self.client.clone(),
             subscriptions: HashSet::new(),
+            filters: std::collections::HashMap::new(),
             cmd_rx,
             msg_tx,
             ping_interval_duration: self.ping_interval,
@@ -140,6 +142,7 @@ struct PrivateWsRunner {
     renew_task: Option<tokio::task::JoinHandle<()>>,
     client: GmoFxClient,
     subscriptions: HashSet<String>,
+    filters: std::collections::HashMap<String, HashSet<String>>,
     cmd_rx: tokio::sync::mpsc::Receiver<PrivateCommand>,
     msg_tx: tokio::sync::mpsc::Sender<Result<PrivateWsMessage>>,
     ping_interval_duration: Duration,
@@ -176,7 +179,14 @@ impl PrivateWsRunner {
                             Some(Ok(Message::Text(text))) => {
                                 match serde_json::from_str::<PrivateWsMessage>(&text) {
                                     Ok(event) => {
-                                        if self.msg_tx.send(Ok(event)).await.is_err() {
+                                        let channel = event.channel();
+                                        let symbol = event.symbol();
+                                        let allowed = if let Some(allowed_symbols) = self.filters.get(channel) {
+                                            allowed_symbols.contains(symbol)
+                                        } else {
+                                            true
+                                        };
+                                        if allowed && self.msg_tx.send(Ok(event)).await.is_err() {
                                             break;
                                         }
                                     }
@@ -225,6 +235,19 @@ impl PrivateWsRunner {
                     cmd = cmd_fut => {
                         match cmd {
                             Some(PrivateCommand::Subscribe { channel }) => {
+                                self.filters.remove(&channel);
+                                self.subscriptions.insert(channel.clone());
+                                let cmd_msg = SubscribeCommand::new(&channel);
+                                if let Ok(msg_str) = serde_json::to_string(&cmd_msg) {
+                                    if let Err(e) = stream.send(Message::Text(msg_str.into())).await {
+                                        eprintln!("Failed to send subscription: {:?}, reconnecting...", e);
+                                        self.handle_disconnect().await;
+                                        self.ws_stream = None;
+                                    }
+                                }
+                            }
+                            Some(PrivateCommand::SubscribeFiltered { channel, symbol }) => {
+                                self.filters.entry(channel.clone()).or_default().insert(symbol.clone());
                                 self.subscriptions.insert(channel.clone());
                                 let cmd_msg = SubscribeCommand::new(&channel);
                                 if let Ok(msg_str) = serde_json::to_string(&cmd_msg) {
@@ -275,6 +298,11 @@ impl PrivateWsRunner {
                     cmd = self.cmd_rx.recv() => {
                         match cmd {
                             Some(PrivateCommand::Subscribe { channel }) => {
+                                self.filters.remove(&channel);
+                                self.subscriptions.insert(channel);
+                            }
+                            Some(PrivateCommand::SubscribeFiltered { channel, symbol }) => {
+                                self.filters.entry(channel.clone()).or_default().insert(symbol);
                                 self.subscriptions.insert(channel);
                             }
                             None => {
@@ -421,6 +449,22 @@ impl PrivateWsClient {
             .await
             .map_err(|e| {
                 GmoFxError::Http(format!("Failed to send subscribe command to runner: {}", e))
+            })?;
+        Ok(())
+    }
+
+    pub async fn subscribe_filtered(&mut self, channel: &str, symbol: &str) -> Result<()> {
+        self.cmd_tx
+            .send(PrivateCommand::SubscribeFiltered {
+                channel: channel.to_string(),
+                symbol: symbol.to_string(),
+            })
+            .await
+            .map_err(|e| {
+                GmoFxError::Http(format!(
+                    "Failed to send subscribe_filtered command to runner: {}",
+                    e
+                ))
             })?;
         Ok(())
     }
@@ -875,5 +919,167 @@ mod tests {
 
         let msg = ws_client.next_message().await.unwrap();
         assert!(msg.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_symbol_filtering() {
+        // 1. Mock HTTP server
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = http_listener.accept().await {
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = r#"{"status":0,"messages":[],"data":{"token":"test-token"}}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+                        }
+                        Message::Text(_) => {
+                            // On subscription, send two events (EUR_JPY first, then USD_JPY)
+                            let eur_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"EUR_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                            ws_stream
+                                .send(Message::Text(eur_json.into()))
+                                .await
+                                .unwrap();
+
+                            let usd_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                            ws_stream
+                                .send(Message::Text(usd_json.into()))
+                                .await
+                                .unwrap();
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient
+        let mut ws_client =
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(200))
+                .await
+                .unwrap();
+
+        ws_client
+            .subscribe_filtered("orderEvents", "USD_JPY")
+            .await
+            .unwrap();
+
+        // next_message() should skip EUR_JPY and receive USD_JPY directly
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PrivateWsMessage::Order(o)) = msg {
+            assert_eq!(o.symbol, "USD_JPY");
+        } else {
+            panic!("Expected Order event");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_private_ws_symbol_filtering_cleared_by_subscribe() {
+        // 1. Mock HTTP server
+        let http_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http_listener.local_addr().unwrap().port();
+        let http_url = format!("http://127.0.0.1:{}", http_port);
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = http_listener.accept().await {
+                let mut buf = [0; 1024];
+                let _ = stream.read(&mut buf).await;
+                let body = r#"{"status":0,"messages":[],"data":{"token":"test-token"}}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+
+        // 2. Mock WS server
+        let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_listener.local_addr().unwrap().port();
+        let ws_url = format!("ws://127.0.0.1:{}", ws_port);
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = ws_listener.accept().await {
+                let mut ws_stream = accept_async(stream).await.unwrap();
+                while let Some(msg) = ws_stream.next().await {
+                    match msg.unwrap() {
+                        Message::Ping(data) => {
+                            ws_stream.send(Message::Pong(data)).await.unwrap();
+                        }
+                        Message::Text(_) => {
+                            // On subscription, send EUR_JPY event
+                            let eur_json = r#"{"channel":"orderEvents","rootOrderId":123,"orderId":456,"symbol":"EUR_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","orderStatus":"ORDERED","orderTimestamp":"2026-06-14T22:00:00Z","orderPrice":"150.0","orderSize":"10000","msgType":"ER"}"#;
+                            let _ = ws_stream.send(Message::Text(eur_json.into())).await;
+                        }
+                        Message::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        // 3. Build GmoFxClient
+        let client = GmoFxClient::builder()
+            .credentials("test_api_key", "test_secret_key")
+            .base_url(http_url)
+            .build();
+
+        // 4. Connect PrivateWsClient
+        let mut ws_client =
+            PrivateWsClient::connect_with_url(client, &ws_url, Duration::from_millis(200))
+                .await
+                .unwrap();
+
+        // Subscribe filtered first
+        ws_client
+            .subscribe_filtered("orderEvents", "USD_JPY")
+            .await
+            .unwrap();
+        // Normal subscribe clears the filter for this channel
+        ws_client.subscribe("orderEvents").await.unwrap();
+
+        // Wait a short bit for commands to be processed in the runner
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let msg = ws_client.next_message().await.unwrap();
+        assert!(msg.is_some());
+        if let Some(PrivateWsMessage::Order(o)) = msg {
+            assert_eq!(o.symbol, "EUR_JPY");
+        } else {
+            panic!("Expected Order event");
+        }
     }
 }
