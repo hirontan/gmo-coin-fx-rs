@@ -461,7 +461,10 @@ impl PrivateWsClient {
             })
             .await
             .map_err(|e| {
-                GmoFxError::Http(format!("Failed to send subscribe_filtered command to runner: {}", e))
+                GmoFxError::Http(format!(
+                    "Failed to send subscribe_filtered command to runner: {}",
+                    e
+                ))
             })?;
         Ok(())
     }
@@ -986,7 +989,10 @@ mod tests {
                 .await
                 .unwrap();
 
-        ws_client.subscribe_filtered("orderEvents", "USD_JPY").await.unwrap();
+        ws_client
+            .subscribe_filtered("orderEvents", "USD_JPY")
+            .await
+            .unwrap();
 
         // next_message() should skip EUR_JPY and receive USD_JPY directly
         let msg = ws_client.next_message().await.unwrap();
@@ -1058,7 +1064,10 @@ mod tests {
                 .unwrap();
 
         // Subscribe filtered first
-        ws_client.subscribe_filtered("orderEvents", "USD_JPY").await.unwrap();
+        ws_client
+            .subscribe_filtered("orderEvents", "USD_JPY")
+            .await
+            .unwrap();
         // Normal subscribe clears the filter for this channel
         ws_client.subscribe("orderEvents").await.unwrap();
 

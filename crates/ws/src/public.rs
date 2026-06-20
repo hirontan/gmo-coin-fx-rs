@@ -433,7 +433,10 @@ impl PublicWsClient {
             })
             .await
             .map_err(|e| {
-                GmoFxError::Http(format!("Failed to send subscribe_filtered command to runner: {}", e))
+                GmoFxError::Http(format!(
+                    "Failed to send subscribe_filtered command to runner: {}",
+                    e
+                ))
             })?;
         Ok(())
     }
@@ -814,11 +817,17 @@ mod tests {
                             if txt.contains("subscribe") && txt.contains("ticker") {
                                 // Send EUR_JPY ticker (should be filtered out)
                                 let eur_json = r#"{"symbol":"EUR_JPY","ask":"167.266","bid":"167.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                                ws_stream.send(Message::Text(eur_json.into())).await.unwrap();
+                                ws_stream
+                                    .send(Message::Text(eur_json.into()))
+                                    .await
+                                    .unwrap();
 
                                 // Send USD_JPY ticker (should be delivered)
                                 let usd_json = r#"{"symbol":"USD_JPY","ask":"157.266","bid":"157.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                                ws_stream.send(Message::Text(usd_json.into())).await.unwrap();
+                                ws_stream
+                                    .send(Message::Text(usd_json.into()))
+                                    .await
+                                    .unwrap();
                             }
                         }
                         Message::Close(_) => break,
@@ -831,7 +840,10 @@ mod tests {
         let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
-        client.subscribe_filtered("ticker", "USD_JPY").await.unwrap();
+        client
+            .subscribe_filtered("ticker", "USD_JPY")
+            .await
+            .unwrap();
 
         // next_message() should skip EUR_JPY and receive USD_JPY directly
         let msg = client.next_message().await.unwrap();
@@ -861,7 +873,10 @@ mod tests {
                             if txt.contains("subscribe") && txt.contains("ticker") {
                                 // Send EUR_JPY ticker
                                 let eur_json = r#"{"symbol":"EUR_JPY","ask":"167.266","bid":"167.261","timestamp":"2026-05-01T06:06:33.584446Z","status":"OPEN"}"#;
-                                ws_stream.send(Message::Text(eur_json.into())).await.unwrap();
+                                ws_stream
+                                    .send(Message::Text(eur_json.into()))
+                                    .await
+                                    .unwrap();
                             }
                         }
                         Message::Close(_) => break,
@@ -875,7 +890,10 @@ mod tests {
             .await
             .unwrap();
         // Subscribe filtered first
-        client.subscribe_filtered("ticker", "USD_JPY").await.unwrap();
+        client
+            .subscribe_filtered("ticker", "USD_JPY")
+            .await
+            .unwrap();
         // Normal subscribe to the same channel clears the filter
         client.subscribe("ticker", Some("EUR_JPY")).await.unwrap();
 
