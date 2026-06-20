@@ -182,10 +182,8 @@ impl PublicWsRunner {
                                         } else {
                                             true
                                         };
-                                        if allowed {
-                                            if self.msg_tx.send(Ok(event)).await.is_err() {
-                                                break;
-                                            }
+                                        if allowed && self.msg_tx.send(Ok(event)).await.is_err() {
+                                            break;
                                         }
                                     }
                                     Err(e) => {
