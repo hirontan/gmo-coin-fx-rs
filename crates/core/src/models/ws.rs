@@ -124,3 +124,40 @@ impl SubscriptionBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_subscription_builder() {
+        let sub = Subscription::builder()
+            .channel(Channel::Ticker)
+            .symbol(FxSymbol::UsdJpy)
+            .build();
+        assert_eq!(sub.channel, Channel::Ticker);
+        assert_eq!(sub.symbol, Some(FxSymbol::UsdJpy));
+
+        let sub_no_symbol = Subscription::builder()
+            .channel(Channel::ExecutionEvents)
+            .build();
+        assert_eq!(sub_no_symbol.channel, Channel::ExecutionEvents);
+        assert_eq!(sub_no_symbol.symbol, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "channel is required")]
+    fn test_subscription_builder_missing_channel() {
+        let _ = Subscription::builder()
+            .symbol(FxSymbol::UsdJpy)
+            .build();
+    }
+
+    #[test]
+    fn test_channel_display_and_from_str() {
+        assert_eq!(Channel::Ticker.to_string(), "ticker");
+        assert_eq!(Channel::from_str("orderbooks").unwrap(), Channel::Orderbooks);
+        assert!(Channel::from_str("invalid_channel").is_err());
+    }
+}
