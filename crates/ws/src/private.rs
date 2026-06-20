@@ -446,10 +446,12 @@ impl PrivateWsClient {
     pub async fn subscribe(&mut self, subscription: Subscription) -> Result<()> {
         match subscription.channel {
             Channel::ExecutionEvents | Channel::PositionEvents | Channel::OrderEvents => {}
-            _ => return Err(GmoFxError::InvalidRequest(format!(
-                "channel {:?} is not supported on private WebSocket",
-                subscription.channel
-            ))),
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on private WebSocket",
+                    subscription.channel
+                )))
+            }
         }
 
         self.cmd_tx
@@ -466,10 +468,12 @@ impl PrivateWsClient {
     pub async fn subscribe_filtered(&mut self, subscription: Subscription) -> Result<()> {
         match subscription.channel {
             Channel::ExecutionEvents | Channel::PositionEvents | Channel::OrderEvents => {}
-            _ => return Err(GmoFxError::InvalidRequest(format!(
-                "channel {:?} is not supported on private WebSocket",
-                subscription.channel
-            ))),
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on private WebSocket",
+                    subscription.channel
+                )))
+            }
         }
 
         let symbol = subscription.symbol.ok_or_else(|| {

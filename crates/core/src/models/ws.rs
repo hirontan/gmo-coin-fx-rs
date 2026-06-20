@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::models::FxSymbol;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WsAuth {
@@ -74,7 +74,10 @@ impl std::str::FromStr for Channel {
             "executionEvents" => Ok(Self::ExecutionEvents),
             "positionEvents" => Ok(Self::PositionEvents),
             "orderEvents" => Ok(Self::OrderEvents),
-            _ => Err(crate::error::GmoFxError::InvalidRequest(format!("unknown channel: {}", s))),
+            _ => Err(crate::error::GmoFxError::InvalidRequest(format!(
+                "unknown channel: {}",
+                s
+            ))),
         }
     }
 }
@@ -149,15 +152,16 @@ mod tests {
     #[test]
     #[should_panic(expected = "channel is required")]
     fn test_subscription_builder_missing_channel() {
-        let _ = Subscription::builder()
-            .symbol(FxSymbol::UsdJpy)
-            .build();
+        let _ = Subscription::builder().symbol(FxSymbol::UsdJpy).build();
     }
 
     #[test]
     fn test_channel_display_and_from_str() {
         assert_eq!(Channel::Ticker.to_string(), "ticker");
-        assert_eq!(Channel::from_str("orderbooks").unwrap(), Channel::Orderbooks);
+        assert_eq!(
+            Channel::from_str("orderbooks").unwrap(),
+            Channel::Orderbooks
+        );
         assert!(Channel::from_str("invalid_channel").is_err());
     }
 }

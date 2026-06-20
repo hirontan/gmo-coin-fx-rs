@@ -418,10 +418,12 @@ impl PublicWsClient {
     pub async fn subscribe(&mut self, subscription: Subscription) -> Result<()> {
         match subscription.channel {
             Channel::Ticker | Channel::Orderbooks => {}
-            _ => return Err(GmoFxError::InvalidRequest(format!(
-                "channel {:?} is not supported on public WebSocket",
-                subscription.channel
-            ))),
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on public WebSocket",
+                    subscription.channel
+                )))
+            }
         }
 
         self.cmd_tx
@@ -439,10 +441,12 @@ impl PublicWsClient {
     pub async fn subscribe_filtered(&mut self, subscription: Subscription) -> Result<()> {
         match subscription.channel {
             Channel::Ticker | Channel::Orderbooks => {}
-            _ => return Err(GmoFxError::InvalidRequest(format!(
-                "channel {:?} is not supported on public WebSocket",
-                subscription.channel
-            ))),
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on public WebSocket",
+                    subscription.channel
+                )))
+            }
         }
 
         let symbol = subscription.symbol.ok_or_else(|| {
