@@ -77,13 +77,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### WebSocket（パブリック）
 
 ```rust
-use gmo_coin_fx_ws::PublicWsClient;
+use gmo_coin_fx_core::models::{Channel, FxSymbol, Subscription};
 use gmo_coin_fx_core::models::ws_events::PublicWsMessage;
+use gmo_coin_fx_ws::PublicWsClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = PublicWsClient::connect().await?;
-    client.subscribe("ticker", Some("USD_JPY")).await?;
+    let sub = Subscription::builder()
+        .channel(Channel::Ticker)
+        .symbol(FxSymbol::UsdJpy)
+        .build();
+    client.subscribe(sub).await?;
 
     while let Some(msg) = client.next_message().await? {
         match msg {
@@ -101,8 +106,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use gmo_coin_fx_client::GmoFxClient;
-use gmo_coin_fx_ws::PrivateWsClient;
+use gmo_coin_fx_core::models::{Channel, Subscription};
 use gmo_coin_fx_core::models::ws_events::PrivateWsMessage;
+use gmo_coin_fx_ws::PrivateWsClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -112,7 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // トークン取得・自動更新付きで接続
     let mut ws_client = PrivateWsClient::connect(rest_client).await?;
-    ws_client.subscribe("executionEvents").await?;
+    let sub = Subscription::builder()
+        .channel(Channel::ExecutionEvents)
+        .build();
+    ws_client.subscribe(sub).await?;
 
     while let Some(msg) = ws_client.next_message().await? {
         match msg {
