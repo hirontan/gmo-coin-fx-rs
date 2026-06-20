@@ -1,7 +1,9 @@
 use futures_util::{SinkExt, StreamExt};
 use gmo_coin_fx_client::GmoFxClient;
 use gmo_coin_fx_core::{
-    models::ws::SubscribeCommand, models::ws_events::PrivateWsMessage, GmoFxError, Result,
+    models::ws::{Channel, SubscribeCommand, Subscription},
+    models::ws_events::PrivateWsMessage,
+    GmoFxError, Result,
 };
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
@@ -441,10 +443,20 @@ impl PrivateWsClient {
         Ok((ws_stream, renew_task))
     }
 
-    pub async fn subscribe(&mut self, channel: &str) -> Result<()> {
+    pub async fn subscribe(&mut self, subscription: Subscription) -> Result<()> {
+        match subscription.channel {
+            Channel::ExecutionEvents | Channel::PositionEvents | Channel::OrderEvents => {}
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on private WebSocket",
+                    subscription.channel
+                )))
+            }
+        }
+
         self.cmd_tx
             .send(PrivateCommand::Subscribe {
-                channel: channel.to_string(),
+                channel: subscription.channel.as_str().to_string(),
             })
             .await
             .map_err(|e| {
@@ -453,10 +465,24 @@ impl PrivateWsClient {
         Ok(())
     }
 
-    pub async fn subscribe_filtered(&mut self, channel: &str, symbol: &str) -> Result<()> {
+    pub async fn subscribe_filtered(&mut self, subscription: Subscription) -> Result<()> {
+        match subscription.channel {
+            Channel::ExecutionEvents | Channel::PositionEvents | Channel::OrderEvents => {}
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on private WebSocket",
+                    subscription.channel
+                )))
+            }
+        }
+
+        let symbol = subscription.symbol.ok_or_else(|| {
+            GmoFxError::InvalidRequest("symbol is required for filtered subscription".to_string())
+        })?;
+
         self.cmd_tx
             .send(PrivateCommand::SubscribeFiltered {
-                channel: channel.to_string(),
+                channel: subscription.channel.as_str().to_string(),
                 symbol: symbol.to_string(),
             })
             .await
@@ -486,6 +512,7 @@ impl Drop for PrivateWsClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gmo_coin_fx_core::models::FxSymbol;
     use std::sync::Arc;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
@@ -558,7 +585,14 @@ mod tests {
                 .await
                 .unwrap();
 
-        ws_client.subscribe("orderEvents").await.unwrap();
+        ws_client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         let msg = ws_client.next_message().await.unwrap();
         assert!(msg.is_some());
@@ -645,7 +679,14 @@ mod tests {
                 .await
                 .unwrap();
 
-        ws_client.subscribe("orderEvents").await.unwrap();
+        ws_client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         let msg = ws_client.next_message().await.unwrap();
         assert!(msg.is_some());
@@ -751,7 +792,14 @@ mod tests {
             .await
             .unwrap();
 
-        ws_client.subscribe("orderEvents").await.unwrap();
+        ws_client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert_eq!(*connect_calls.lock().await, 1);
@@ -839,7 +887,14 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Subscribe during reconnect window
-        ws_client.subscribe("positionEvents").await.unwrap();
+        ws_client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::PositionEvents)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(150)).await;
 
@@ -990,7 +1045,12 @@ mod tests {
                 .unwrap();
 
         ws_client
-            .subscribe_filtered("orderEvents", "USD_JPY")
+            .subscribe_filtered(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
             .await
             .unwrap();
 
@@ -1065,11 +1125,23 @@ mod tests {
 
         // Subscribe filtered first
         ws_client
-            .subscribe_filtered("orderEvents", "USD_JPY")
+            .subscribe_filtered(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
             .await
             .unwrap();
         // Normal subscribe clears the filter for this channel
-        ws_client.subscribe("orderEvents").await.unwrap();
+        ws_client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::OrderEvents)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         // Wait a short bit for commands to be processed in the runner
         tokio::time::sleep(Duration::from_millis(50)).await;

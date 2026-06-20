@@ -1,6 +1,9 @@
 use futures_util::{SinkExt, StreamExt};
 use gmo_coin_fx_core::{
-    models::ws::SubscribeCommand, models::ws_events::PublicWsMessage, GmoFxError, Result,
+    models::ws::{Channel, SubscribeCommand, Subscription},
+    models::ws_events::PublicWsMessage,
+    models::FxSymbol,
+    GmoFxError, Result,
 };
 use std::collections::HashSet;
 use tokio::time::{sleep, Duration};
@@ -412,11 +415,21 @@ impl PublicWsClient {
         Ok(ws_stream)
     }
 
-    pub async fn subscribe(&mut self, channel: &str, symbol: Option<&str>) -> Result<()> {
+    pub async fn subscribe(&mut self, subscription: Subscription) -> Result<()> {
+        match subscription.channel {
+            Channel::Ticker | Channel::Orderbooks => {}
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on public WebSocket",
+                    subscription.channel
+                )))
+            }
+        }
+
         self.cmd_tx
             .send(PublicCommand::Subscribe {
-                channel: channel.to_string(),
-                symbol: symbol.map(String::from),
+                channel: subscription.channel.as_str().to_string(),
+                symbol: subscription.symbol.map(|s| s.to_string()),
             })
             .await
             .map_err(|e| {
@@ -425,10 +438,24 @@ impl PublicWsClient {
         Ok(())
     }
 
-    pub async fn subscribe_filtered(&mut self, channel: &str, symbol: &str) -> Result<()> {
+    pub async fn subscribe_filtered(&mut self, subscription: Subscription) -> Result<()> {
+        match subscription.channel {
+            Channel::Ticker | Channel::Orderbooks => {}
+            _ => {
+                return Err(GmoFxError::InvalidRequest(format!(
+                    "channel {:?} is not supported on public WebSocket",
+                    subscription.channel
+                )))
+            }
+        }
+
+        let symbol = subscription.symbol.ok_or_else(|| {
+            GmoFxError::InvalidRequest("symbol is required for filtered subscription".to_string())
+        })?;
+
         self.cmd_tx
             .send(PublicCommand::SubscribeFiltered {
-                channel: channel.to_string(),
+                channel: subscription.channel.as_str().to_string(),
                 symbol: symbol.to_string(),
             })
             .await
@@ -441,8 +468,12 @@ impl PublicWsClient {
         Ok(())
     }
 
-    pub async fn subscribe_orderbook(&mut self, symbol: &str) -> Result<()> {
-        self.subscribe("orderbooks", Some(symbol)).await
+    pub async fn subscribe_orderbook(&mut self, symbol: FxSymbol) -> Result<()> {
+        let sub = Subscription::builder()
+            .channel(Channel::Orderbooks)
+            .symbol(symbol)
+            .build();
+        self.subscribe(sub).await
     }
 
     pub async fn next_message(&mut self) -> Result<Option<PublicWsMessage>> {
@@ -506,7 +537,15 @@ mod tests {
         let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
-        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+        client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         // next_message() should receive the ticker event after ping-pong is handled
         let msg = client.next_message().await.unwrap();
@@ -561,7 +600,15 @@ mod tests {
         let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
-        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+        client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         // next_message() should trigger timeout, reconnect, resubscribe, and receive the ticker event
         let msg = client.next_message().await.unwrap();
@@ -635,7 +682,15 @@ mod tests {
 
         // connect() should trigger the first on_connect
         let mut client = client.connect().await.unwrap();
-        client.subscribe("ticker", Some("USD_JPY")).await.unwrap();
+        client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert_eq!(*connect_calls.lock().await, 1);
@@ -696,7 +751,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // While client is disconnected/reconnecting, we subscribe to a new channel
-        client.subscribe_orderbook("BTC_JPY").await.unwrap();
+        client.subscribe_orderbook(FxSymbol::EurJpy).await.unwrap();
 
         // Wait for reconnect to happen and process resubscribe
         tokio::time::sleep(Duration::from_millis(150)).await;
@@ -722,8 +777,8 @@ mod tests {
             "Subscription did not contain orderbooks"
         );
         assert!(
-            sub_json.contains("BTC_JPY"),
-            "Subscription did not contain BTC_JPY"
+            sub_json.contains("EUR_JPY"),
+            "Subscription did not contain EUR_JPY"
         );
     }
 
@@ -744,7 +799,7 @@ mod tests {
                         Message::Text(txt) => {
                             if txt.contains("subscribe") && txt.contains("orderbooks") {
                                 // Send mock OrderBook Event
-                                let ob_json = r#"{"symbol":"BTC_JPY","asks":[{"price":"10000000","size":"0.5"}],"bids":[{"price":"9999000","size":"1.2"}],"timestamp":"2026-05-01T06:06:33.584446Z"}"#;
+                                let ob_json = r#"{"symbol":"EUR_JPY","asks":[{"price":"10000000","size":"0.5"}],"bids":[{"price":"9999000","size":"1.2"}],"timestamp":"2026-05-01T06:06:33.584446Z"}"#;
                                 ws_stream.send(Message::Text(ob_json.into())).await.unwrap();
                             }
                         }
@@ -758,12 +813,12 @@ mod tests {
         let mut client = PublicWsClient::connect_with_url(&url, Duration::from_millis(200))
             .await
             .unwrap();
-        client.subscribe_orderbook("BTC_JPY").await.unwrap();
+        client.subscribe_orderbook(FxSymbol::EurJpy).await.unwrap();
 
         let msg = client.next_message().await.unwrap();
         assert!(msg.is_some());
         if let Some(PublicWsMessage::OrderBook(ob)) = msg {
-            assert_eq!(ob.symbol, "BTC_JPY");
+            assert_eq!(ob.symbol, "EUR_JPY");
             assert_eq!(ob.asks[0].price_f64().unwrap(), 10000000.0);
             assert_eq!(ob.asks[0].size_f64().unwrap(), 0.5);
             assert_eq!(ob.bids[0].price_f64().unwrap(), 9999000.0);
@@ -841,7 +896,12 @@ mod tests {
             .await
             .unwrap();
         client
-            .subscribe_filtered("ticker", "USD_JPY")
+            .subscribe_filtered(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
             .await
             .unwrap();
 
@@ -891,11 +951,24 @@ mod tests {
             .unwrap();
         // Subscribe filtered first
         client
-            .subscribe_filtered("ticker", "USD_JPY")
+            .subscribe_filtered(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::UsdJpy)
+                    .build(),
+            )
             .await
             .unwrap();
         // Normal subscribe to the same channel clears the filter
-        client.subscribe("ticker", Some("EUR_JPY")).await.unwrap();
+        client
+            .subscribe(
+                Subscription::builder()
+                    .channel(Channel::Ticker)
+                    .symbol(FxSymbol::EurJpy)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         // Wait a short bit for commands to be processed in the runner
         tokio::time::sleep(Duration::from_millis(50)).await;
