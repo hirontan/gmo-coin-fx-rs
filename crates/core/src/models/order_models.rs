@@ -196,7 +196,7 @@ pub enum ExecutionType {
     OCO,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Order {
     #[serde(rename = "rootOrderId")]
     pub root_order_id: u64,
@@ -245,7 +245,7 @@ impl Order {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveOrders {
     pub list: Vec<Order>,
 }

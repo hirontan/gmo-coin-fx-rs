@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PublicWsMessage {
     Ticker(TickerEvent),
@@ -23,7 +23,7 @@ impl PublicWsMessage {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TickerEvent {
     pub symbol: String,
     pub ask: String,
@@ -42,7 +42,7 @@ impl TickerEvent {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookEntry {
     pub price: String,
     pub size: String,
@@ -58,7 +58,7 @@ impl OrderBookEntry {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookEvent {
     pub symbol: String,
     pub asks: Vec<OrderBookEntry>,
@@ -66,7 +66,7 @@ pub struct OrderBookEvent {
     pub timestamp: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "channel")]
 pub enum PrivateWsMessage {
     #[serde(rename = "executionEvents")]
@@ -95,7 +95,7 @@ impl PrivateWsMessage {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionEvent {
     pub amount: String,
     #[serde(rename = "rootOrderId")]
@@ -180,7 +180,7 @@ impl ExecutionEvent {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionEvent {
     #[serde(rename = "positionId")]
     pub position_id: u64,
@@ -224,7 +224,7 @@ impl PositionEvent {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderEvent {
     #[serde(rename = "rootOrderId")]
     pub root_order_id: u64,

@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     #[serde(rename = "positionId")]
     pub position_id: u64,
@@ -51,12 +51,12 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionsList {
     pub list: Vec<Position>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionSummary {
     pub symbol: String,
     pub side: String,
@@ -96,7 +96,7 @@ impl PositionSummary {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionSummaryList {
     pub list: Vec<PositionSummary>,
 }

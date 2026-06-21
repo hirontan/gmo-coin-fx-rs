@@ -1,7 +1,7 @@
 use crate::models::FxSymbol;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WsAuth {
     pub token: String,
 }
