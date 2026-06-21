@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
     #[serde(rename = "executionId")]
     pub execution_id: u64,
@@ -42,7 +42,7 @@ impl Execution {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionsList {
     pub list: Vec<Execution>,
 }
