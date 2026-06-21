@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ticker {
     pub symbol: String,
     pub ask: String,
@@ -9,12 +9,12 @@ pub struct Ticker {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiStatus {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kline {
     #[serde(rename = "openTime")]
     pub open_time: String,
@@ -24,7 +24,7 @@ pub struct Kline {
     pub close: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {
     pub symbol: String,
     #[serde(rename = "minOpenOrderSize")]
