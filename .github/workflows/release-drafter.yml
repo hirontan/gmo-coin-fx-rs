@@ -39,7 +39,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # RELEASE_TOKEN があれば使用（CI が PR 上で自動実行される）
           # なければ GITHUB_TOKEN でフォールバック
