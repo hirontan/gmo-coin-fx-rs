@@ -15,7 +15,7 @@ pub struct ApiResponse<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Ticker, AccountAsset};
+    use crate::models::{AccountAsset, Ticker};
 
     #[test]
     fn test_equality_comparison() {
@@ -53,4 +53,3 @@ mod tests {
         assert_eq!(response1, response2);
     }
 }
-
