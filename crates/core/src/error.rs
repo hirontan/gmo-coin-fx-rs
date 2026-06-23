@@ -26,7 +26,7 @@ pub enum GmoFxError {
     ParseFloat(#[from] std::num::ParseFloatError),
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ApiMessage {
     #[serde(default, rename = "message_code")]
     pub message_code: Option<String>,

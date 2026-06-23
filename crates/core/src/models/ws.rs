@@ -1,12 +1,12 @@
 use crate::models::FxSymbol;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WsAuth {
     pub token: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SubscribeCommand {
     pub command: String,
     pub channel: String,

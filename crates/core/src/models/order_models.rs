@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OrderRequest {
     pub symbol: String,
     pub side: OrderSide,
@@ -118,13 +118,13 @@ impl OrderRequestBuilder {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CancelOrderRequest {
     #[serde(rename = "orderId")]
     pub order_id: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChangeOrderRequest {
     #[serde(rename = "orderId")]
     pub order_id: u64,
@@ -133,7 +133,7 @@ pub struct ChangeOrderRequest {
     pub losscut_price: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CancelBulkOrderRequest {
     pub symbol: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -142,7 +142,7 @@ pub struct CancelBulkOrderRequest {
     pub settle_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CloseOrderRequest {
     #[serde(rename = "positionId")]
     pub position_id: u64,
@@ -157,7 +157,7 @@ pub struct CloseOrderRequest {
     pub cancel_before: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CloseBulkOrderRequest {
     pub symbol: String,
     pub side: String,
@@ -171,7 +171,7 @@ pub struct CloseBulkOrderRequest {
     pub size: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SpeedOrderRequest {
     pub symbol: String,
     pub side: String,
@@ -180,14 +180,14 @@ pub struct SpeedOrderRequest {
     pub size_step: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OrderSide {
     BUY,
     SELL,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ExecutionType {
     MARKET,
@@ -196,7 +196,7 @@ pub enum ExecutionType {
     OCO,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Order {
     #[serde(rename = "rootOrderId")]
     pub root_order_id: u64,
@@ -245,7 +245,7 @@ impl Order {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveOrders {
     pub list: Vec<Order>,
 }
