@@ -12,6 +12,22 @@ pub struct ApiResponse<T> {
     pub responsetime: Option<String>,
 }
 
+#[cfg(feature = "chrono")]
+pub fn parse_timestamp(s: &str) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
+        return Ok(dt.with_timezone(&chrono::Utc));
+    }
+    if let Ok(ms) = s.parse::<i64>() {
+        if let Some(dt) = chrono::DateTime::from_timestamp(ms / 1000, ((ms % 1000) * 1_000_000) as u32) {
+            return Ok(dt);
+        }
+    }
+    Err(crate::error::GmoFxError::InvalidRequest(format!(
+        "failed to parse timestamp: {}",
+        s
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
