@@ -40,6 +40,11 @@ impl Execution {
     pub fn fee_f64(&self) -> crate::Result<f64> {
         self.fee.parse::<f64>().map_err(Into::into)
     }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
