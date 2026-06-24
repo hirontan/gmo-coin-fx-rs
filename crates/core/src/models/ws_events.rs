@@ -40,6 +40,18 @@ impl TickerEvent {
     pub fn bid_f64(&self) -> crate::Result<f64> {
         self.bid.parse::<f64>().map_err(Into::into)
     }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.timestamp)
+    }
+}
+
+impl OrderBookEvent {
+    #[cfg(feature = "chrono")]
+    pub fn parsed_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +190,16 @@ impl ExecutionEvent {
     pub fn order_size_f64(&self) -> crate::Result<f64> {
         self.order_size.parse::<f64>().map_err(Into::into)
     }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_order_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.order_timestamp)
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_execution_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.execution_timestamp)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,6 +244,11 @@ impl PositionEvent {
             .map(|p| p.parse::<f64>().map_err(Into::into))
             .transpose()
     }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,6 +288,11 @@ impl OrderEvent {
 
     pub fn order_size_f64(&self) -> crate::Result<f64> {
         self.order_size.parse::<f64>().map_err(Into::into)
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_order_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.order_timestamp)
     }
 }
 

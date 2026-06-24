@@ -45,6 +45,11 @@ impl Ticker {
     pub fn bid_f64(&self) -> crate::Result<f64> {
         self.bid.parse::<f64>().map_err(Into::into)
     }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_timestamp(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.timestamp)
+    }
 }
 
 impl Kline {
@@ -62,6 +67,11 @@ impl Kline {
 
     pub fn close_f64(&self) -> crate::Result<f64> {
         self.close.parse::<f64>().map_err(Into::into)
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn parsed_open_time(&self) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+        super::common::parse_timestamp(&self.open_time)
     }
 }
 

@@ -12,6 +12,24 @@ pub struct ApiResponse<T> {
     pub responsetime: Option<String>,
 }
 
+#[cfg(feature = "chrono")]
+pub fn parse_timestamp(s: &str) -> crate::Result<chrono::DateTime<chrono::Utc>> {
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
+        return Ok(dt.with_timezone(&chrono::Utc));
+    }
+    if let Ok(ms) = s.parse::<i64>() {
+        if let Some(dt) =
+            chrono::DateTime::from_timestamp(ms / 1000, ((ms % 1000) * 1_000_000) as u32)
+        {
+            return Ok(dt);
+        }
+    }
+    Err(crate::error::GmoFxError::InvalidRequest(format!(
+        "failed to parse timestamp: {}",
+        s
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,5 +69,29 @@ mod tests {
         };
         let response2 = response1.clone();
         assert_eq!(response1, response2);
+    }
+
+    #[test]
+    #[cfg(feature = "chrono")]
+    fn test_timestamp_parsing() {
+        let rfc3339_str = "2026-05-01T06:06:33.584446Z";
+        let parsed1 = parse_timestamp(rfc3339_str).unwrap();
+        assert_eq!(parsed1.to_rfc3339(), "2026-05-01T06:06:33.584446+00:00");
+
+        let millis_str = "1588303593584";
+        let parsed2 = parse_timestamp(millis_str).unwrap();
+        assert_eq!(parsed2.to_rfc3339(), "2020-05-01T03:26:33.584+00:00");
+
+        assert!(parse_timestamp("invalid").is_err());
+        assert!(parse_timestamp("10:00").is_err());
+
+        let ticker = Ticker {
+            symbol: "USD_JPY".to_string(),
+            ask: "150.00".to_string(),
+            bid: "149.95".to_string(),
+            timestamp: rfc3339_str.to_string(),
+            status: "OPEN".to_string(),
+        };
+        assert_eq!(ticker.parsed_timestamp().unwrap(), parsed1);
     }
 }
