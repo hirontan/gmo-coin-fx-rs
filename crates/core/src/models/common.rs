@@ -18,7 +18,9 @@ pub fn parse_timestamp(s: &str) -> crate::Result<chrono::DateTime<chrono::Utc>> 
         return Ok(dt.with_timezone(&chrono::Utc));
     }
     if let Ok(ms) = s.parse::<i64>() {
-        if let Some(dt) = chrono::DateTime::from_timestamp(ms / 1000, ((ms % 1000) * 1_000_000) as u32) {
+        if let Some(dt) =
+            chrono::DateTime::from_timestamp(ms / 1000, ((ms % 1000) * 1_000_000) as u32)
+        {
             return Ok(dt);
         }
     }
