@@ -1,3 +1,4 @@
+use crate::models::SettleType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,7 +13,7 @@ pub struct Execution {
     pub side: String,
 
     #[serde(rename = "settleType")]
-    pub settle_type: String,
+    pub settle_type: SettleType,
 
     pub size: String,
     pub price: String,
@@ -63,7 +64,7 @@ mod tests {
             order_id: 67890,
             symbol: "USD_JPY".to_string(),
             side: "BUY".to_string(),
-            settle_type: "OPEN".to_string(),
+            settle_type: SettleType::Open,
             size: "10000.5".to_string(),
             price: "155.25".to_string(),
             loss_gain: "1234.5".to_string(),
