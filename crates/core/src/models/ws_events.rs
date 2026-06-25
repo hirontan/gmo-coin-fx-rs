@@ -1,3 +1,4 @@
+use crate::models::SettleType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,7 +121,7 @@ pub struct ExecutionEvent {
     pub execution_id: u64,
     pub symbol: String,
     #[serde(rename = "settleType")]
-    pub settle_type: String,
+    pub settle_type: SettleType,
     #[serde(rename = "orderType")]
     pub order_type: String,
     #[serde(rename = "executionType")]
@@ -261,7 +262,7 @@ pub struct OrderEvent {
     pub order_id: u64,
     pub symbol: String,
     #[serde(rename = "settleType")]
-    pub settle_type: String,
+    pub settle_type: SettleType,
     #[serde(rename = "orderType")]
     pub order_type: String,
     #[serde(rename = "executionType")]
@@ -389,7 +390,7 @@ mod tests {
             client_order_id: None,
             execution_id: 3,
             symbol: "USD_JPY".to_string(),
-            settle_type: "OPEN".to_string(),
+            settle_type: SettleType::Open,
             order_type: "NORMAL".to_string(),
             execution_type: "LIMIT".to_string(),
             side: "BUY".to_string(),
@@ -439,7 +440,7 @@ mod tests {
             client_order_id: None,
             order_id: 2,
             symbol: "USD_JPY".to_string(),
-            settle_type: "OPEN".to_string(),
+            settle_type: SettleType::Open,
             order_type: "NORMAL".to_string(),
             execution_type: "LIMIT".to_string(),
             side: "BUY".to_string(),
