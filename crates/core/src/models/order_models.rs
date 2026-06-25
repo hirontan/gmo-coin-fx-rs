@@ -139,7 +139,7 @@ pub struct CancelBulkOrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub side: Option<String>,
     #[serde(rename = "settleType", skip_serializing_if = "Option::is_none")]
-    pub settle_type: Option<String>,
+    pub settle_type: Option<SettleType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -196,6 +196,13 @@ pub enum ExecutionType {
     OCO,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SettleType {
+    Open,
+    Close,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Order {
     #[serde(rename = "rootOrderId")]
@@ -217,7 +224,7 @@ pub struct Order {
     pub execution_type: String,
 
     #[serde(rename = "settleType")]
-    pub settle_type: String,
+    pub settle_type: SettleType,
 
     pub size: String,
 
@@ -365,7 +372,7 @@ mod tests {
             side: "BUY".to_string(),
             order_type: "LIMIT".to_string(),
             execution_type: "LIMIT".to_string(),
-            settle_type: "OPEN".to_string(),
+            settle_type: SettleType::Open,
             size: "10000".to_string(),
             price: Some("155.25".to_string()),
             status: "ORDERED".to_string(),
