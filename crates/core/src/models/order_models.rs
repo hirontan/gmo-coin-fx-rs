@@ -139,7 +139,7 @@ pub struct CancelBulkOrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub side: Option<String>,
     #[serde(rename = "settleType", skip_serializing_if = "Option::is_none")]
-    pub settle_type: Option<String>,
+    pub settle_type: Option<SettleType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -196,6 +196,13 @@ pub enum ExecutionType {
     OCO,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SettleType {
+    Open,
+    Close,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Order {
     #[serde(rename = "rootOrderId")]
@@ -217,7 +224,7 @@ pub struct Order {
     pub execution_type: String,
 
     #[serde(rename = "settleType")]
-    pub settle_type: String,
+    pub settle_type: SettleType,
 
     pub size: String,
 
@@ -365,7 +372,7 @@ mod tests {
             side: "BUY".to_string(),
             order_type: "LIMIT".to_string(),
             execution_type: "LIMIT".to_string(),
-            settle_type: "OPEN".to_string(),
+            settle_type: SettleType::Open,
             size: "10000".to_string(),
             price: Some("155.25".to_string()),
             status: "ORDERED".to_string(),
@@ -381,5 +388,18 @@ mod tests {
             ..order
         };
         assert_eq!(order_no_price.price_f64().unwrap(), None);
+    }
+
+    #[test]
+    fn test_settle_type_serde() {
+        let open_json = serde_json::to_string(&SettleType::Open).unwrap();
+        let close_json = serde_json::to_string(&SettleType::Close).unwrap();
+        assert_eq!(open_json, r#""OPEN""#);
+        assert_eq!(close_json, r#""CLOSE""#);
+
+        let open_parsed: SettleType = serde_json::from_str(r#""OPEN""#).unwrap();
+        let close_parsed: SettleType = serde_json::from_str(r#""CLOSE""#).unwrap();
+        assert_eq!(open_parsed, SettleType::Open);
+        assert_eq!(close_parsed, SettleType::Close);
     }
 }
