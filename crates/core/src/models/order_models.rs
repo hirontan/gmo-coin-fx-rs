@@ -389,4 +389,17 @@ mod tests {
         };
         assert_eq!(order_no_price.price_f64().unwrap(), None);
     }
+
+    #[test]
+    fn test_settle_type_serde() {
+        let open_json = serde_json::to_string(&SettleType::Open).unwrap();
+        let close_json = serde_json::to_string(&SettleType::Close).unwrap();
+        assert_eq!(open_json, r#""OPEN""#);
+        assert_eq!(close_json, r#""CLOSE""#);
+
+        let open_parsed: SettleType = serde_json::from_str(r#""OPEN""#).unwrap();
+        let close_parsed: SettleType = serde_json::from_str(r#""CLOSE""#).unwrap();
+        assert_eq!(open_parsed, SettleType::Open);
+        assert_eq!(close_parsed, SettleType::Close);
+    }
 }
