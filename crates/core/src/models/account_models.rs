@@ -81,7 +81,6 @@ impl TryFrom<&AccountAsset> for f64 {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
