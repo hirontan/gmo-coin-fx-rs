@@ -108,6 +108,19 @@ impl PrivateWsMessage {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MsgType {
+    /// Execution Report
+    #[serde(rename = "ER")]
+    ExecutionReport,
+    /// New Order Report
+    #[serde(rename = "NOR")]
+    NewOrderReport,
+    /// Cancel Order Report
+    #[serde(rename = "COR")]
+    CancelOrderReport,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionEvent {
     pub amount: String,
@@ -145,7 +158,7 @@ pub struct ExecutionEvent {
     #[serde(rename = "orderSize")]
     pub order_size: String,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
     #[serde(rename = "orderTimestamp")]
     pub order_timestamp: String,
     #[serde(rename = "executionTimestamp")]
@@ -219,7 +232,7 @@ pub struct PositionEvent {
     #[serde(rename = "totalSwap", skip_serializing_if = "Option::is_none")]
     pub total_swap: Option<String>,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
 }
 
 impl PositionEvent {
@@ -279,7 +292,7 @@ pub struct OrderEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expiry: Option<String>,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
 }
 
 impl OrderEvent {
@@ -403,7 +416,7 @@ mod tests {
             order_price: "140".to_string(),
             order_executed_size: "10000".to_string(),
             order_size: "10000".to_string(),
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
             order_timestamp: "now".to_string(),
             execution_timestamp: "now".to_string(),
         };
@@ -427,7 +440,7 @@ mod tests {
             loss_gain: "1000".to_string(),
             timestamp: "now".to_string(),
             total_swap: Some("50".to_string()),
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
         };
         assert_eq!(pos.size_f64().unwrap(), 10000.0);
         assert_eq!(pos.ordered_size_f64().unwrap(), 0.0);
@@ -449,7 +462,7 @@ mod tests {
             order_price: "140".to_string(),
             order_size: "10000".to_string(),
             expiry: None,
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
         };
         assert_eq!(order.order_price_f64().unwrap(), 140.0);
         assert_eq!(order.order_size_f64().unwrap(), 10000.0);
