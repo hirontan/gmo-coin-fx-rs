@@ -65,6 +65,23 @@ impl AccountAsset {
     }
 }
 
+impl TryFrom<AccountAsset> for f64 {
+    type Error = crate::error::GmoFxError;
+
+    fn try_from(asset: AccountAsset) -> Result<Self, Self::Error> {
+        asset.equity_f64()
+    }
+}
+
+impl TryFrom<&AccountAsset> for f64 {
+    type Error = crate::error::GmoFxError;
+
+    fn try_from(asset: &AccountAsset) -> Result<Self, Self::Error> {
+        asset.equity_f64()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
