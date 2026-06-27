@@ -380,14 +380,14 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-application-risk"
-version = "0.3.50"
+version = "0.3.51"
 dependencies = [
  "gmo-coin-fx-domain-risk",
 ]
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.3.50"
+version = "0.3.51"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -402,7 +402,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.3.50"
+version = "0.3.51"
 dependencies = [
  "chrono",
  "hex",
@@ -415,18 +415,18 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-domain-risk"
-version = "0.3.50"
+version = "0.3.51"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
-version = "0.3.50"
+version = "0.3.51"
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.3.50"
+version = "0.3.51"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
