@@ -65,6 +65,22 @@ impl AccountAsset {
     }
 }
 
+impl TryFrom<AccountAsset> for f64 {
+    type Error = crate::error::GmoFxError;
+
+    fn try_from(asset: AccountAsset) -> Result<Self, Self::Error> {
+        asset.equity_f64()
+    }
+}
+
+impl TryFrom<&AccountAsset> for f64 {
+    type Error = crate::error::GmoFxError;
+
+    fn try_from(asset: &AccountAsset) -> Result<Self, Self::Error> {
+        asset.equity_f64()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +108,49 @@ mod tests {
         assert_eq!(asset.position_loss_gain_f64().unwrap(), -500.00);
         assert_eq!(asset.total_swap_f64().unwrap(), 120.00);
         assert_eq!(asset.transferable_amount_f64().unwrap(), 900000.00);
+    }
+
+    #[test]
+    fn test_account_asset_try_from() {
+        let asset = AccountAsset {
+            equity: "1000000.50".to_string(),
+            available_amount: "950000.00".to_string(),
+            balance: "1000000.00".to_string(),
+            estimated_trade_fee: "150.00".to_string(),
+            margin: "50000.00".to_string(),
+            margin_ratio: "20.00".to_string(),
+            position_loss_gain: "-500.00".to_string(),
+            total_swap: "120.00".to_string(),
+            transferable_amount: "900000.00".to_string(),
+        };
+
+        // TryFrom<&AccountAsset>
+        let equity_ref: f64 = (&asset).try_into().unwrap();
+        assert_eq!(equity_ref, 1000000.50);
+
+        // TryFrom<AccountAsset>
+        let equity_val: f64 = asset.try_into().unwrap();
+        assert_eq!(equity_val, 1000000.50);
+    }
+
+    #[test]
+    fn test_account_asset_try_from_invalid() {
+        let asset = AccountAsset {
+            equity: "invalid_float".to_string(),
+            available_amount: "950000.00".to_string(),
+            balance: "1000000.00".to_string(),
+            estimated_trade_fee: "150.00".to_string(),
+            margin: "50000.00".to_string(),
+            margin_ratio: "20.00".to_string(),
+            position_loss_gain: "-500.00".to_string(),
+            total_swap: "120.00".to_string(),
+            transferable_amount: "900000.00".to_string(),
+        };
+
+        let result: Result<f64, _> = (&asset).try_into();
+        assert!(result.is_err());
+
+        let result_val: Result<f64, _> = asset.try_into();
+        assert!(result_val.is_err());
     }
 }
