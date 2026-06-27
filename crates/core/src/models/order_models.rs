@@ -203,6 +203,18 @@ pub enum SettleType {
     Close,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OrderStatus {
+    Ordered,
+    Waiting,
+    Modifying,
+    Cancelling,
+    Canceled,
+    Executed,
+    Expired,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Order {
     #[serde(rename = "rootOrderId")]
@@ -231,7 +243,7 @@ pub struct Order {
     #[serde(default)]
     pub price: Option<String>,
 
-    pub status: String,
+    pub status: OrderStatus,
 
     #[serde(default)]
     pub expiry: Option<String>,
@@ -375,7 +387,7 @@ mod tests {
             settle_type: SettleType::Open,
             size: "10000".to_string(),
             price: Some("155.25".to_string()),
-            status: "ORDERED".to_string(),
+            status: OrderStatus::Ordered,
             expiry: None,
             timestamp: "now".to_string(),
         };

@@ -1,4 +1,4 @@
-use crate::models::SettleType;
+use crate::models::{OrderStatus, SettleType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,7 +269,7 @@ pub struct OrderEvent {
     pub execution_type: String,
     pub side: String,
     #[serde(rename = "orderStatus")]
-    pub order_status: String,
+    pub order_status: OrderStatus,
     #[serde(rename = "orderTimestamp")]
     pub order_timestamp: String,
     #[serde(rename = "orderPrice")]
@@ -444,7 +444,7 @@ mod tests {
             order_type: "NORMAL".to_string(),
             execution_type: "LIMIT".to_string(),
             side: "BUY".to_string(),
-            order_status: "ORDERED".to_string(),
+            order_status: OrderStatus::Ordered,
             order_timestamp: "now".to_string(),
             order_price: "140".to_string(),
             order_size: "10000".to_string(),
