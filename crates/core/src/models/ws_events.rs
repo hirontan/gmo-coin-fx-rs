@@ -108,6 +108,19 @@ impl PrivateWsMessage {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MsgType {
+    /// Execution Report
+    #[serde(rename = "ER")]
+    ExecutionReport,
+    /// New Order Report
+    #[serde(rename = "NOR")]
+    NewOrderReport,
+    /// Cancel Order Report
+    #[serde(rename = "COR")]
+    CancelOrderReport,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionEvent {
     pub amount: String,
@@ -145,7 +158,7 @@ pub struct ExecutionEvent {
     #[serde(rename = "orderSize")]
     pub order_size: String,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
     #[serde(rename = "orderTimestamp")]
     pub order_timestamp: String,
     #[serde(rename = "executionTimestamp")]
@@ -219,7 +232,7 @@ pub struct PositionEvent {
     #[serde(rename = "totalSwap", skip_serializing_if = "Option::is_none")]
     pub total_swap: Option<String>,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
 }
 
 impl PositionEvent {
@@ -279,7 +292,7 @@ pub struct OrderEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expiry: Option<String>,
     #[serde(rename = "msgType")]
-    pub msg_type: String,
+    pub msg_type: MsgType,
 }
 
 impl OrderEvent {
