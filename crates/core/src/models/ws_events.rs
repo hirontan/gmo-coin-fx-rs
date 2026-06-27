@@ -416,7 +416,7 @@ mod tests {
             order_price: "140".to_string(),
             order_executed_size: "10000".to_string(),
             order_size: "10000".to_string(),
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
             order_timestamp: "now".to_string(),
             execution_timestamp: "now".to_string(),
         };
@@ -440,7 +440,7 @@ mod tests {
             loss_gain: "1000".to_string(),
             timestamp: "now".to_string(),
             total_swap: Some("50".to_string()),
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
         };
         assert_eq!(pos.size_f64().unwrap(), 10000.0);
         assert_eq!(pos.ordered_size_f64().unwrap(), 0.0);
@@ -462,7 +462,7 @@ mod tests {
             order_price: "140".to_string(),
             order_size: "10000".to_string(),
             expiry: None,
-            msg_type: "ER".to_string(),
+            msg_type: MsgType::ExecutionReport,
         };
         assert_eq!(order.order_price_f64().unwrap(), 140.0);
         assert_eq!(order.order_size_f64().unwrap(), 10000.0);
