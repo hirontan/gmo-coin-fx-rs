@@ -8,3 +8,9 @@ rust-version.workspace = true
 
 [dependencies]
 gmo-coin-fx-domain-risk = { path = "../domain-risk" }
+gmo-coin-fx-client = { path = "../client" }
+gmo-coin-fx-core = { path = "../core" }
+
+[dev-dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }
