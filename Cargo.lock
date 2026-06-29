@@ -382,7 +382,11 @@ dependencies = [
 name = "gmo-coin-fx-application-risk"
 version = "0.3.51"
 dependencies = [
+ "gmo-coin-fx-client",
+ "gmo-coin-fx-core",
  "gmo-coin-fx-domain-risk",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
