@@ -10,7 +10,9 @@ pub async fn evaluate_order_risk(
 ) -> Result<RiskCheckResult> {
     let assets = client.assets().await?;
     let asset = assets.first().ok_or_else(|| {
-        gmo_coin_fx_core::error::GmoFxError::InvalidRequest("No account assets returned".to_string())
+        gmo_coin_fx_core::error::GmoFxError::InvalidRequest(
+            "No account assets returned".to_string(),
+        )
     })?;
     let equity = f64::try_from(asset)?;
 
@@ -107,7 +109,9 @@ mod tests {
         };
 
         // Smaller quantity so effective leverage is within limits: 5000 * 150 / 300000 = 2.5x (Limit: 5.0x)
-        let result = evaluate_order_risk(&client, 5000.0, 150.0, config).await.unwrap();
+        let result = evaluate_order_risk(&client, 5000.0, 150.0, config)
+            .await
+            .unwrap();
         assert!(result.allowed);
         assert!(result.reasons.is_empty());
         assert_eq!(result.metrics.effective_leverage, 2.5);
@@ -159,7 +163,9 @@ mod tests {
         };
 
         // Larger quantity so effective leverage exceeds limit: 20000 * 150 / 300000 = 10x (Limit: 5.0x)
-        let result = evaluate_order_risk(&client, 20000.0, 150.0, config).await.unwrap();
+        let result = evaluate_order_risk(&client, 20000.0, 150.0, config)
+            .await
+            .unwrap();
         assert!(!result.allowed);
         assert_eq!(result.reasons.len(), 1);
         assert!(result.reasons[0].contains("Effective leverage exceeds limit"));
