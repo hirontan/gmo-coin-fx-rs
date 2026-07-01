@@ -242,4 +242,86 @@ mod tests {
         let err_str = result.unwrap_err().to_string();
         assert!(err_str.contains("No account assets returned"));
     }
+
+    #[tokio::test]
+    async fn test_portfolio_risk_summary_success() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            // Assets request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "500.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+            // Open positions request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": {
+                        "list": [
+                            {
+                                "positionId": 1234567,
+                                "symbol": "USD_JPY",
+                                "side": "BUY",
+                                "size": "10000",
+                                "orderdSize": "0",
+                                "price": "150.0",
+                                "lossGain": "1000",
+                                "leverage": "25",
+                                "losscutPrice": "130.0",
+                                "timestamp": "2019-03-19T02:15:06.064Z"
+                            },
+                            {
+                                "positionId": 1234568,
+                                "symbol": "USD_JPY",
+                                "side": "SELL",
+                                "size": "5000",
+                                "orderdSize": "0",
+                                "price": "150.0",
+                                "lossGain": "-500",
+                                "leverage": "25",
+                                "losscutPrice": "170.0",
+                                "timestamp": "2019-03-19T02:15:06.064Z"
+                            }
+                        ]
+                    }
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: None,
+        };
+
+        let metrics = portfolio_risk_summary(&client, config).await.unwrap();
+
+        assert_eq!(metrics.notional_value, 2_250_000.0);
+        assert_eq!(metrics.required_margin, 90_000.0);
+        assert_eq!(metrics.effective_leverage, 7.5);
+    }
 }
