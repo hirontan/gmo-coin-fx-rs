@@ -1,6 +1,6 @@
 use gmo_coin_fx_client::GmoFxClient;
 use gmo_coin_fx_core::Result;
-use gmo_coin_fx_domain_risk::types::{RiskCheckResult, RiskConfig};
+use gmo_coin_fx_domain_risk::types::{RiskCheckResult, RiskConfig, RiskMetrics};
 
 pub async fn evaluate_order_risk(
     client: &GmoFxClient,
@@ -36,6 +36,48 @@ pub async fn evaluate_order_risk(
     );
 
     Ok(result)
+}
+
+pub async fn portfolio_risk_summary(
+    client: &GmoFxClient,
+    _config: RiskConfig,
+) -> Result<RiskMetrics> {
+    let assets = client.assets().await?;
+    let asset = assets.first().ok_or_else(|| {
+        gmo_coin_fx_core::error::GmoFxError::InvalidRequest(
+            "No account assets returned".to_string(),
+        )
+    })?;
+    let equity = f64::try_from(asset)?;
+
+    let positions = client.open_positions(None, None).await?;
+
+    let mut mapped_positions = Vec::new();
+    for p in &positions.list {
+        let size = p.size_f64()?;
+        let price = p.price_f64()?;
+        let loss_gain = p.loss_gain_f64()?;
+        let quantity = if p.side.to_uppercase() == "BUY" {
+            size
+        } else {
+            -size
+        };
+        mapped_positions.push((quantity, price, loss_gain));
+    }
+
+    let account_leverage = if let Some(first_pos) = positions.list.first() {
+        first_pos.leverage_f64().unwrap_or(25.0)
+    } else {
+        25.0
+    };
+
+    let metrics = gmo_coin_fx_domain_risk::aggregate_risk_metrics(
+        equity,
+        &mapped_positions,
+        account_leverage,
+    );
+
+    Ok(metrics)
 }
 
 #[cfg(test)]
