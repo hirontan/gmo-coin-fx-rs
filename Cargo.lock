@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-application-risk"
-version = "0.3.52"
+version = "0.3.53"
 dependencies = [
  "gmo-coin-fx-client",
  "gmo-coin-fx-core",
@@ -391,7 +391,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-client"
-version = "0.3.52"
+version = "0.3.53"
 dependencies = [
  "gmo-coin-fx-core",
  "hex",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-core"
-version = "0.3.52"
+version = "0.3.53"
 dependencies = [
  "chrono",
  "hex",
@@ -419,18 +419,18 @@ dependencies = [
 
 [[package]]
 name = "gmo-coin-fx-domain-risk"
-version = "0.3.52"
+version = "0.3.53"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "gmo-coin-fx-infrastructure-broker"
-version = "0.3.52"
+version = "0.3.53"
 
 [[package]]
 name = "gmo-coin-fx-ws"
-version = "0.3.52"
+version = "0.3.53"
 dependencies = [
  "futures-util",
  "gmo-coin-fx-client",
@@ -1127,9 +1127,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.14.1"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30a7197ae7eb376e574fe940d068c30fe0462554a3ddbe4eca7838e049c937a9"
+checksum = "764899a24af3980067ee14bc143654f297b22eaebfe3c7b6b211920a5a59b046"
 dependencies = [
  "web-time",
  "zeroize",
