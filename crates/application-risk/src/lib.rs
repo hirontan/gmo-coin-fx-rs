@@ -1,6 +1,6 @@
 use gmo_coin_fx_client::GmoFxClient;
-use gmo_coin_fx_core::Result;
 use gmo_coin_fx_core::models::{Order, OrderRequest};
+use gmo_coin_fx_core::Result;
 use gmo_coin_fx_domain_risk::types::{RiskCheckResult, RiskConfig, RiskMetrics};
 
 pub async fn evaluate_order_risk(
@@ -101,18 +101,30 @@ pub async fn safe_order(
     // Determine price: limitPrice, stopPrice, or ticker price (for market orders)
     let price = if let Some(ref lp) = req.limit_price {
         lp.parse::<f64>().map_err(|e| {
-            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("failed to parse limitPrice: {}", e))
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!(
+                "failed to parse limitPrice: {}",
+                e
+            ))
         })?
     } else if let Some(ref sp) = req.stop_price {
         sp.parse::<f64>().map_err(|e| {
-            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("failed to parse stopPrice: {}", e))
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!(
+                "failed to parse stopPrice: {}",
+                e
+            ))
         })?
     } else {
         // Fetch ticker for market price
         let tickers = client.ticker().await?;
-        let ticker = tickers.iter().find(|t| t.symbol == req.symbol).ok_or_else(|| {
-            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("Ticker not found for symbol: {}", req.symbol))
-        })?;
+        let ticker = tickers
+            .iter()
+            .find(|t| t.symbol == req.symbol)
+            .ok_or_else(|| {
+                gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!(
+                    "Ticker not found for symbol: {}",
+                    req.symbol
+                ))
+            })?;
         if req.side == gmo_coin_fx_core::models::OrderSide::BUY {
             ticker.ask_f64()?
         } else {
