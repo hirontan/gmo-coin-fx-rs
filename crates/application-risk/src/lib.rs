@@ -385,4 +385,155 @@ mod tests {
         assert_eq!(metrics.required_margin, 90_000.0);
         assert_eq!(metrics.effective_leverage, 7.5);
     }
+
+    #[tokio::test]
+    async fn test_safe_order_success() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            // 1. Assets request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "500.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+            // 2. Open positions request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{"status": 0, "data": {"list": []}}"#;
+                handle_connection(stream, body).await;
+            }
+            // 3. Place order request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "rootOrderId": 12345,
+                            "clientOrderId": "abc",
+                            "orderId": 12345,
+                            "symbol": "USD_JPY",
+                            "side": "BUY",
+                            "orderType": "LIMIT",
+                            "executionType": "LIMIT",
+                            "settleType": "OPEN",
+                            "size": "5000",
+                            "price": "150.0",
+                            "status": "ORDERED",
+                            "timestamp": "2026-06-14T22:00:00Z"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let req = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .side(gmo_coin_fx_core::models::OrderSide::BUY)
+            .size("5000")
+            .execution_type(gmo_coin_fx_core::models::ExecutionType::LIMIT)
+            .limit_price("150.0")
+            .build()
+            .unwrap();
+
+        let config = RiskConfig {
+            max_effective_leverage: 5.0,
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: None,
+        };
+
+        let result = safe_order(&client, &req, config).await.unwrap();
+
+        assert!(result.allowed);
+        assert!(result.reasons.is_empty());
+        assert!(result.orders.is_some());
+        let orders = result.orders.unwrap();
+        assert_eq!(orders.len(), 1);
+        assert_eq!(orders[0].order_id, 12345);
+        assert_eq!(result.metrics.effective_leverage, 2.5);
+    }
+
+    #[tokio::test]
+    async fn test_safe_order_rejected() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            // 1. Assets request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "500.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+            // 2. Open positions request
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{"status": 0, "data": {"list": []}}"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let req = OrderRequest::builder()
+            .symbol("USD_JPY")
+            .side(gmo_coin_fx_core::models::OrderSide::BUY)
+            .size("20000") // 20000 * 150 / 300000 = 10x effective leverage
+            .execution_type(gmo_coin_fx_core::models::ExecutionType::LIMIT)
+            .limit_price("150.0")
+            .build()
+            .unwrap();
+
+        let config = RiskConfig {
+            max_effective_leverage: 5.0, // limit is 5.0x
+            min_margin_rate: 200.0,
+            risk_per_trade_pct: 0.02,
+            quantity_unit: 1000.0,
+            max_open_positions: None,
+        };
+
+        let result = safe_order(&client, &req, config).await.unwrap();
+
+        assert!(!result.allowed);
+        assert_eq!(result.reasons.len(), 1);
+        assert!(result.reasons[0].contains("Effective leverage exceeds limit"));
+        assert!(result.orders.is_none());
+        assert_eq!(result.metrics.effective_leverage, 10.0);
+    }
 }
