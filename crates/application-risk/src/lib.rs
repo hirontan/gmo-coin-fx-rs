@@ -1,5 +1,6 @@
 use gmo_coin_fx_client::GmoFxClient;
 use gmo_coin_fx_core::Result;
+use gmo_coin_fx_core::models::{Order, OrderRequest};
 use gmo_coin_fx_domain_risk::types::{RiskCheckResult, RiskConfig, RiskMetrics};
 
 pub async fn evaluate_order_risk(
@@ -78,6 +79,66 @@ pub async fn portfolio_risk_summary(
     );
 
     Ok(metrics)
+}
+
+#[derive(Debug, Clone)]
+pub struct SafeOrderResult {
+    pub allowed: bool,
+    pub reasons: Vec<String>,
+    pub orders: Option<Vec<Order>>,
+    pub metrics: RiskMetrics,
+}
+
+pub async fn safe_order(
+    client: &GmoFxClient,
+    req: &OrderRequest,
+    config: RiskConfig,
+) -> Result<SafeOrderResult> {
+    let quantity = req.size.parse::<f64>().map_err(|e| {
+        gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("failed to parse size: {}", e))
+    })?;
+
+    // Determine price: limitPrice, stopPrice, or ticker price (for market orders)
+    let price = if let Some(ref lp) = req.limit_price {
+        lp.parse::<f64>().map_err(|e| {
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("failed to parse limitPrice: {}", e))
+        })?
+    } else if let Some(ref sp) = req.stop_price {
+        sp.parse::<f64>().map_err(|e| {
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("failed to parse stopPrice: {}", e))
+        })?
+    } else {
+        // Fetch ticker for market price
+        let tickers = client.ticker().await?;
+        let ticker = tickers.iter().find(|t| t.symbol == req.symbol).ok_or_else(|| {
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(format!("Ticker not found for symbol: {}", req.symbol))
+        })?;
+        if req.side == gmo_coin_fx_core::models::OrderSide::BUY {
+            ticker.ask_f64()?
+        } else {
+            ticker.bid_f64()?
+        }
+    };
+
+    let check_result = evaluate_order_risk(client, quantity, price, config).await?;
+
+    if !check_result.allowed {
+        return Ok(SafeOrderResult {
+            allowed: false,
+            reasons: check_result.reasons,
+            orders: None,
+            metrics: check_result.metrics,
+        });
+    }
+
+    let orders = client.order(req).await?;
+
+    Ok(SafeOrderResult {
+        allowed: true,
+        reasons: Vec::new(),
+        orders: Some(orders),
+        metrics: check_result.metrics,
+    })
 }
 
 #[cfg(test)]
