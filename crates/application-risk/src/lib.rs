@@ -589,4 +589,112 @@ mod tests {
         assert!(result.orders.is_none());
         assert_eq!(result.metrics.effective_leverage, 10.0);
     }
+
+    #[tokio::test]
+    async fn test_health_monitor_healthy() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "500.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    async fn test_health_monitor_warning() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "250.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Warning { margin_rate: 250.0 });
+    }
+
+    #[tokio::test]
+    async fn test_health_monitor_critical() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "120.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Critical { margin_rate: 120.0 });
+    }
 }
