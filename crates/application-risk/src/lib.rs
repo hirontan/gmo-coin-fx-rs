@@ -153,6 +153,47 @@ pub async fn safe_order(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HealthStatus {
+    Healthy,
+    Warning { margin_rate: f64 },
+    Critical { margin_rate: f64 },
+}
+
+pub struct AccountHealthMonitor {
+    client: GmoFxClient,
+    warning_threshold: f64,
+    critical_threshold: f64,
+}
+
+impl AccountHealthMonitor {
+    pub fn new(client: GmoFxClient, warning_threshold: f64, critical_threshold: f64) -> Self {
+        Self {
+            client,
+            warning_threshold,
+            critical_threshold,
+        }
+    }
+
+    pub async fn check_health(&self) -> Result<HealthStatus> {
+        let assets = self.client.assets().await?;
+        let asset = assets.first().ok_or_else(|| {
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(
+                "No account assets returned".to_string(),
+            )
+        })?;
+        let margin_rate = asset.margin_ratio_f64()?;
+
+        if margin_rate <= self.critical_threshold {
+            Ok(HealthStatus::Critical { margin_rate })
+        } else if margin_rate <= self.warning_threshold {
+            Ok(HealthStatus::Warning { margin_rate })
+        } else {
+            Ok(HealthStatus::Healthy)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -547,5 +588,113 @@ mod tests {
         assert!(result.reasons[0].contains("Effective leverage exceeds limit"));
         assert!(result.orders.is_none());
         assert_eq!(result.metrics.effective_leverage, 10.0);
+    }
+
+    #[tokio::test]
+    async fn test_health_monitor_healthy() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "500.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    async fn test_health_monitor_warning() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "250.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Warning { margin_rate: 250.0 });
+    }
+
+    #[tokio::test]
+    async fn test_health_monitor_critical() {
+        let (listener, url) = start_mock_server().await;
+
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                let body = r#"{
+                    "status": 0,
+                    "data": [
+                        {
+                            "equity": "300000.00",
+                            "availableAmount": "250000.00",
+                            "balance": "300000.00",
+                            "estimatedTradeFee": "0.00",
+                            "margin": "50000.00",
+                            "marginRatio": "120.00",
+                            "positionLossGain": "0.00",
+                            "totalSwap": "0.00",
+                            "transferableAmount": "200000.00"
+                        }
+                    ]
+                }"#;
+                handle_connection(stream, body).await;
+            }
+        });
+
+        let client = GmoFxClient::builder()
+            .credentials("api_key", "secret_key")
+            .base_url(&url)
+            .build();
+
+        let monitor = AccountHealthMonitor::new(client, 300.0, 150.0);
+        let status = monitor.check_health().await.unwrap();
+        assert_eq!(status, HealthStatus::Critical { margin_rate: 120.0 });
     }
 }
