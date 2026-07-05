@@ -153,6 +153,47 @@ pub async fn safe_order(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HealthStatus {
+    Healthy,
+    Warning { margin_rate: f64 },
+    Critical { margin_rate: f64 },
+}
+
+pub struct AccountHealthMonitor {
+    client: GmoFxClient,
+    warning_threshold: f64,
+    critical_threshold: f64,
+}
+
+impl AccountHealthMonitor {
+    pub fn new(client: GmoFxClient, warning_threshold: f64, critical_threshold: f64) -> Self {
+        Self {
+            client,
+            warning_threshold,
+            critical_threshold,
+        }
+    }
+
+    pub async fn check_health(&self) -> Result<HealthStatus> {
+        let assets = self.client.assets().await?;
+        let asset = assets.first().ok_or_else(|| {
+            gmo_coin_fx_core::error::GmoFxError::InvalidRequest(
+                "No account assets returned".to_string(),
+            )
+        })?;
+        let margin_rate = asset.margin_ratio_f64()?;
+
+        if margin_rate <= self.critical_threshold {
+            Ok(HealthStatus::Critical { margin_rate })
+        } else if margin_rate <= self.warning_threshold {
+            Ok(HealthStatus::Warning { margin_rate })
+        } else {
+            Ok(HealthStatus::Healthy)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
