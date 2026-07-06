@@ -221,14 +221,12 @@ impl PublicWsRunner {
                             eprintln!("Ping timeout: no pong received. Reconnecting...");
                             self.handle_disconnect().await;
                             self.ws_stream = None;
+                        } else if let Err(e) = stream.send(Message::Ping(vec![].into())).await {
+                            eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
+                            self.handle_disconnect().await;
+                            self.ws_stream = None;
                         } else {
-                            if let Err(e) = stream.send(Message::Ping(vec![].into())).await {
-                                eprintln!("Failed to send ping: {:?}, attempting reconnect...", e);
-                                self.handle_disconnect().await;
-                                self.ws_stream = None;
-                            } else {
-                                self.ping_pending = true;
-                            }
+                            self.ping_pending = true;
                         }
                     }
                     cmd = cmd_fut => {
