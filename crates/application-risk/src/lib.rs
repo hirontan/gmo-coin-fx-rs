@@ -3,6 +3,9 @@ use gmo_coin_fx_core::models::{Order, OrderRequest};
 use gmo_coin_fx_core::Result;
 use gmo_coin_fx_domain_risk::types::{RiskCheckResult, RiskConfig, RiskMetrics};
 
+pub mod journal;
+pub use journal::{TradeJournal, TradeRecord};
+
 pub async fn evaluate_order_risk(
     client: &GmoFxClient,
     quantity: f64,
