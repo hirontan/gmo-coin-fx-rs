@@ -11,7 +11,7 @@ gmo-coin-fx-domain-risk = { path = "../domain-risk" }
 gmo-coin-fx-client = { path = "../client" }
 gmo-coin-fx-core = { path = "../core" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
-serde_json = { workspace = true }

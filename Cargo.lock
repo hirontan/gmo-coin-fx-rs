@@ -397,6 +397,7 @@ dependencies = [
  "gmo-coin-fx-client",
  "gmo-coin-fx-core",
  "gmo-coin-fx-domain-risk",
+ "serde",
  "serde_json",
  "tokio",
 ]

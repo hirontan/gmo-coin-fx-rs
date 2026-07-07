@@ -108,7 +108,7 @@ mod tests {
             client_order_id: Some("client-123".to_string()),
             execution_id: 789,
             symbol: "USD_JPY".to_string(),
-            settle_type: SettleType::OPEN,
+            settle_type: SettleType::Open,
             order_type: "LIMIT".to_string(),
             execution_type: "LIMIT".to_string(),
             side: "BUY".to_string(),
@@ -136,6 +136,7 @@ mod tests {
             required_margin: 60100.0,
             effective_leverage: 25.0,
             margin_rate: 400.0,
+            loss_per_1yen: 10000.0,
         };
 
         let result = journal.append(&event, &metrics);
@@ -165,6 +166,7 @@ mod tests {
             required_margin: 60100.0,
             effective_leverage: 25.0,
             margin_rate: 400.0,
+            loss_per_1yen: 10000.0,
         };
 
         let result = journal.append(&event, &metrics);
@@ -185,6 +187,7 @@ mod tests {
             required_margin: 60100.0,
             effective_leverage: 25.0,
             margin_rate: 400.0,
+            loss_per_1yen: 10000.0,
         };
 
         journal.append(&event1, &metrics).unwrap();
