@@ -22,3 +22,6 @@ tracing.workspace = true
 default = []
 chrono = ["gmo-coin-fx-core/chrono"]
 
+[dev-dependencies]
+wiremock = "=0.6.2"
+
