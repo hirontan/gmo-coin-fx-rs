@@ -1,5 +1,4 @@
 use futures_util::{SinkExt, StreamExt};
-use gmo_coin_fx_client::auth::AuthSigner;
 use gmo_coin_fx_client::GmoFxClient;
 use gmo_coin_fx_core::models::ws::{Channel, Subscription};
 use gmo_coin_fx_core::models::ws_events::{PrivateWsMessage, PublicWsMessage};
@@ -148,7 +147,7 @@ async fn test_private_ws_reconnect_and_restore() {
                 tx_clone.send(format!("conn1:{}", txt)).await.unwrap();
             }
             // Send execution event
-            let exec_json = r#"{"channel":"executionEvents","rootOrderId":123,"orderId":456,"executionId":789,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","executionPrice":"150.25","executionSize":"10000","positionId":999,"lossGain":"0","fee":"0","orderPrice":"150.25","orderExecutedSize":"10000","orderSize":"10000","msgType":"ER","orderTimestamp":"2026-07-11T12:00:00Z","executionTimestamp":"2026-07-11T12:00:05Z"}"#;
+            let exec_json = r#"{"amount":"10000","channel":"executionEvents","rootOrderId":123,"orderId":456,"executionId":789,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","executionPrice":"150.25","executionSize":"10000","positionId":999,"lossGain":"0","fee":"0","orderPrice":"150.25","orderExecutedSize":"10000","orderSize":"10000","msgType":"ER","orderTimestamp":"2026-07-11T12:00:00Z","executionTimestamp":"2026-07-11T12:00:05Z"}"#;
             ws_stream
                 .send(Message::Text(exec_json.into()))
                 .await
@@ -161,7 +160,7 @@ async fn test_private_ws_reconnect_and_restore() {
 
     let client = GmoFxClient::builder()
         .credentials("test_api_key", "test_secret_key")
-        .base_url(&mock_http_server.uri())
+        .base_url(mock_http_server.uri())
         .build();
 
     let reconnect_config = ReconnectConfig::default()
@@ -212,7 +211,7 @@ async fn test_private_ws_reconnect_and_restore() {
                 tx_clone2.send(format!("conn2:{}", txt)).await.unwrap();
             }
             // Send execution event
-            let exec_json = r#"{"channel":"executionEvents","rootOrderId":123,"orderId":456,"executionId":790,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","executionPrice":"150.30","executionSize":"10000","positionId":999,"lossGain":"0","fee":"0","orderPrice":"150.30","orderExecutedSize":"10000","orderSize":"10000","msgType":"ER","orderTimestamp":"2026-07-11T12:00:00Z","executionTimestamp":"2026-07-11T12:00:05Z"}"#;
+            let exec_json = r#"{"amount":"10000","channel":"executionEvents","rootOrderId":123,"orderId":456,"executionId":790,"symbol":"USD_JPY","settleType":"OPEN","orderType":"NORMAL","executionType":"LIMIT","side":"BUY","executionPrice":"150.30","executionSize":"10000","positionId":999,"lossGain":"0","fee":"0","orderPrice":"150.30","orderExecutedSize":"10000","orderSize":"10000","msgType":"ER","orderTimestamp":"2026-07-11T12:00:00Z","executionTimestamp":"2026-07-11T12:00:05Z"}"#;
             ws_stream
                 .send(Message::Text(exec_json.into()))
                 .await
