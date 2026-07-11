@@ -20,3 +20,6 @@ url = "2.5"
 default = []
 chrono = ["gmo-coin-fx-core/chrono"]
 
+[dev-dependencies]
+wiremock = "=0.6.2"
+
