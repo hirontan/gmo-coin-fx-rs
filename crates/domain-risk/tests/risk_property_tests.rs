@@ -2,8 +2,8 @@ use gmo_coin_fx_domain_risk::leverage::effective_leverage;
 use gmo_coin_fx_domain_risk::margin::{drawdown_pct, margin_rate, required_margin};
 use gmo_coin_fx_domain_risk::position_size::{
     max_quantity_by_leverage, max_quantity_by_risk, notional_value, risk_amount,
-    round_down_to_unit, stop_distance_from_risk, take_profit_distance,
-    trailing_stop_from_atr, trailing_stop_from_pct,
+    round_down_to_unit, stop_distance_from_risk, take_profit_distance, trailing_stop_from_atr,
+    trailing_stop_from_pct,
 };
 use proptest::prelude::*;
 
