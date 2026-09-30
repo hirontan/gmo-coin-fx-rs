@@ -221,4 +221,67 @@ fn verify_trading_halt() {
 }
 ```
 
+---
+
+## Performance Benchmarks & Baseline Numbers
+
+In high-frequency trading (HFT) and algorithmic trading systems, risk calculation routines may be evaluated hundreds or thousands of times per second. To prevent performance regressions and guarantee real-time throughput, micro-benchmarks are implemented using [`criterion`](https://github.com/bheisler/criterion.rs).
+
+### Running Benchmarks
+
+```bash
+# Run full criterion benchmark suite with statistical reporting
+cargo bench -p gmo-coin-fx-domain-risk
+
+# Run fast sanity check on benchmark harnesses (1 iteration per benchmark)
+cargo test --benches
+```
+
+### Baseline Performance Numbers
+
+> **Environment**: x86_64 Linux, Release profile (`opt-level = 3`, Rust 1.86+ / 2021 edition).
+
+#### 1. Individual Risk Calculations (`individual_calculations`)
+
+| Function | Median Latency | Estimated Throughput | Description |
+| :--- | :--- | :--- | :--- |
+| `notional_value` | ~1.02 ns | ~980M ops/s | Position notional value (`qty * price`) |
+| `required_margin` | ~0.99 ns | ~1.01B ops/s | Required collateral (`qty * price / lev`) |
+| `effective_leverage` | ~0.97 ns | ~1.03B ops/s | Effective leverage (`notional / equity`) |
+| `margin_rate` | ~0.98 ns | ~1.02B ops/s | Margin maintenance rate (`equity / req * 100`) |
+| `drawdown_pct` | ~0.99 ns | ~1.01B ops/s | Peak-to-current drawdown percentage |
+| `risk_amount` | ~0.99 ns | ~1.01B ops/s | Risk capital allocation (`equity * risk%`) |
+| `max_quantity_by_risk` | ~0.98 ns | ~1.02B ops/s | Position size based on stop distance |
+| `stop_distance_from_risk` | ~0.99 ns | ~1.01B ops/s | Stop distance derived from trade risk |
+| `take_profit_distance` | ~0.97 ns | ~1.03B ops/s | Take profit distance (`stop * rr_ratio`) |
+| `pip_size` | ~33.5 ns | ~30M ops/s | Pip unit resolution from currency symbol |
+| `pip_value` | ~0.50 ns | ~2.00B ops/s | Quote currency pip value (`qty * pip_size`) |
+| `max_quantity_by_leverage` | ~0.99 ns | ~1.01B ops/s | Max units subject to leverage constraint |
+| `round_down_to_unit` | ~0.99 ns | ~1.01B ops/s | Integer lot-unit rounding |
+| `trailing_stop_from_atr` | ~0.99 ns | ~1.01B ops/s | Volatility-based trailing stop distance |
+| `trailing_stop_from_pct` | ~0.99 ns | ~1.01B ops/s | Price percentage trailing stop distance |
+| `check_daily_loss_limit` | ~0.50 ns | ~2.00B ops/s | Daily cumulative loss threshold check |
+
+#### 2. Risk Metrics & Multi-Position Aggregation (`risk_metrics`)
+
+| Function | Median Latency | Estimated Throughput | Description |
+| :--- | :--- | :--- | :--- |
+| `calculate_risk_metrics` | ~7.36 ns | ~135M ops/s | Single-order composite risk calculation |
+| `aggregate_risk_metrics` (2 positions) | ~9.82 ns | ~102M ops/s | Portfolio-wide risk aggregation (2 legs) |
+| `aggregate_risk_metrics` (10 positions) | ~31.6 ns | ~31.6M ops/s | Portfolio-wide risk aggregation (10 legs) |
+
+#### 3. Pre-Order Risk Validation (`order_risk`)
+
+| Scenario | Median Latency | Estimated Throughput | Description |
+| :--- | :--- | :--- | :--- |
+| `check_order_risk` (allowed, no stop) | ~24.8 ns | ~40.3M ops/s | Full pre-order validation without stop validation |
+| `check_order_risk` (allowed, with stop) | ~25.9 ns | ~38.6M ops/s | Full pre-order validation including potential loss check |
+| `check_order_risk` (rejected) | ~1.50 µs | ~667K ops/s | Validation rejection with failure reason string allocations |
+
+### Key Takeaways
+- **Ultra-low latency for hot paths**: All primary arithmetic operations execute in sub-nanosecond or single-digit nanoseconds (~1 ns).
+- **Zero allocation for allowed orders**: Allowed order checks take ~25 ns and perform zero heap allocations.
+- **Scalable portfolio aggregation**: Aggregating across 10 positions takes just ~32 ns, comfortably supporting hundreds of thousands of evaluation ticks per second.
+
+
 

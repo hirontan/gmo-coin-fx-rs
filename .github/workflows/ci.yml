@@ -42,6 +42,10 @@ jobs:
       - name: Test
         run: cargo test --all
 
+      - name: Benchmark tests
+        run: cargo test --benches
+
+
   msrv-check:
     name: MSRV Check (Rust 1.86)
     runs-on: ubuntu-latest

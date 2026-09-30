@@ -10,4 +10,10 @@ rust-version.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+criterion = { workspace = true }
 proptest = "1"
+
+[[bench]]
+name = "risk_calculations"
+harness = false
+
